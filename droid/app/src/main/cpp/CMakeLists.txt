@@ -3,10 +3,11 @@ project(Pass C)
 
 set(REPO_ROOT "${CMAKE_CURRENT_LIST_DIR}/../../../../..")
 set(KRYON_DIR "${REPO_ROOT}/vendor/kryon")
-set(KRY_GENERATED_DIR "${REPO_ROOT}/build/krygen/c")
+set(KRY_GENERATED_DIR "${CMAKE_BINARY_DIR}/krygen/c")
 set(RAYLIB_DIR "${KRYON_DIR}/vendor/raylib/src")
 set(PASS_NATIVE_DIR "${REPO_ROOT}/native")
 set(NATIVE_APP_GLUE_DIR "${ANDROID_NDK}/sources/android/native_app_glue")
+include("${KRYON_DIR}/cmake/KryonKrySources.cmake")
 
 file(GLOB_RECURSE KRYON_SOURCES CONFIGURE_DEPENDS "${KRYON_DIR}/src/*.c")
 # The src/backend/ software renderer implements raylib-named functions for
@@ -31,6 +32,17 @@ list(FILTER KRYON_SOURCES EXCLUDE REGEX "${KRYON_DIR}/src/platform/desktop/.*")
 list(FILTER KRYON_SOURCES EXCLUDE REGEX "${KRYON_DIR}/src/platform/desktop_tray/.*")
 list(FILTER KRYON_SOURCES EXCLUDE REGEX "${KRYON_DIR}/src/platform/plan9/.*")
 list(FILTER KRYON_SOURCES EXCLUDE REGEX "${KRYON_DIR}/src/platform/web/.*")
+
+file(GLOB_RECURSE PASS_KRY_SOURCES CONFIGURE_DEPENDS "${REPO_ROOT}/app/*.kry")
+list(SORT PASS_KRY_SOURCES)
+kryon_generate_kry_sources(PASS_KRY_GENERATED_SOURCES PASS_KRY_INCLUDE_DIR
+    TARGET pass_kry_generated
+    KRYON_DIR "${KRYON_DIR}"
+    ROOT "${REPO_ROOT}"
+    OUT_DIR "${KRY_GENERATED_DIR}"
+    NO_MAIN
+    SOURCES ${PASS_KRY_SOURCES}
+)
 
 set(PASS_FONT_ASSET "vendor/kryon/fonts/noto/NotoSans-Regular.ttf")
 set(PASS_EMOJI_FONT_ASSET "assets/fonts/emoji.ttf")
@@ -85,19 +97,17 @@ add_library(main SHARED
     android_bridge.c
     "${PASS_NATIVE_DIR}/pass_core.c"
     "${PASS_NATIVE_DIR}/pass_runtime.c"
-    "${KRY_GENERATED_DIR}/app/nav.c"
-    "${KRY_GENERATED_DIR}/app/pass.c"
-    "${KRY_GENERATED_DIR}/app/profiles.c"
-    "${KRY_GENERATED_DIR}/app/settings.c"
+    ${PASS_KRY_GENERATED_SOURCES}
     "${PASS_EMBEDDED_ASSETS_C}"
     ${KRYON_SOURCES}
     "${NATIVE_APP_GLUE_DIR}/android_native_app_glue.c"
 )
+add_dependencies(main pass_kry_generated)
 
 target_include_directories(main PRIVATE
     "${KRYON_DIR}/include"
     "${KRYON_DIR}/src"
-    "${KRY_GENERATED_DIR}"
+    "${PASS_KRY_INCLUDE_DIR}"
     "${PASS_NATIVE_DIR}"
     "${CMAKE_CURRENT_LIST_DIR}"
     "${NATIVE_APP_GLUE_DIR}"

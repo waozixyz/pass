@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.2.6] - 2026-08-24
+
+- Keep Android source builds self-contained so F-Droid and other source builds
+  generate the Kry app sources automatically.
+
 ## [0.2.5] - 2026-08-24
 
 - Add Android appearance settings for following device colors, choosing
