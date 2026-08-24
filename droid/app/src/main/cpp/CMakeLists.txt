@@ -24,6 +24,12 @@ list(FILTER KRYON_SOURCES EXCLUDE REGEX "${KRYON_DIR}/src/ksync/.*")
 list(FILTER KRYON_SOURCES EXCLUDE REGEX "${KRYON_DIR}/src/runtime_assets/.*")
 list(FILTER KRYON_SOURCES EXCLUDE REGEX "${KRYON_DIR}/src/notification/.*")
 list(REMOVE_ITEM KRYON_SOURCES "${KRYON_DIR}/src/file_dialog/file_dialog.c")
+# Keep Android builds off platform implementations for other targets. These
+# directories can contain host SDK headers or symbols unavailable to the NDK.
+list(FILTER KRYON_SOURCES EXCLUDE REGEX "${KRYON_DIR}/src/platform/desktop/.*")
+list(FILTER KRYON_SOURCES EXCLUDE REGEX "${KRYON_DIR}/src/platform/desktop_tray/.*")
+list(FILTER KRYON_SOURCES EXCLUDE REGEX "${KRYON_DIR}/src/platform/plan9/.*")
+list(FILTER KRYON_SOURCES EXCLUDE REGEX "${KRYON_DIR}/src/platform/web/.*")
 
 set(PASS_FONT_ASSET "vendor/kryon/fonts/noto/NotoSans-Regular.ttf")
 set(PASS_EMOJI_FONT_ASSET "gui/assets/emoji.ttf")

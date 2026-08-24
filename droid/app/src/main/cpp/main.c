@@ -126,6 +126,9 @@ main(int argc, char **argv)
         Vector2 scale = GetWindowScaleDPI();
         float dpi = scale.x > 0.0f ? scale.x : 1.0f;
 
+#if ANDROID_BUILD
+        SyncAndroidSurfaceSize(&width, &height);
+#endif
 #if defined(PLATFORM_WEB)
         SyncWebWindowSize();
         width = GetScreenWidth();
@@ -133,6 +136,9 @@ main(int argc, char **argv)
 #endif
 
         BeginDrawing();
+#if ANDROID_BUILD
+        SyncAndroidSurfaceSize(&width, &height);
+#endif
         BeginUIFrame(width, height, dpi);
         pass_app_draw(app, width, height, dpi,
                         android_bridge_top_reserved(),

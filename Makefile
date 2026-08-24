@@ -1,4 +1,4 @@
-.PHONY: all cli gui native run test native-test check-submodule-urls web web-canvas site web-smoke android-debug android-smoke e2e install install-cli uninstall-cli install-gui uninstall-gui package-deb package-appimage
+.PHONY: all cli gui native run test native-test check-submodule-urls kry-smoke web web-canvas site web-smoke android-debug android-smoke e2e install install-cli uninstall-cli install-gui uninstall-gui package-deb package-appimage
 
 BIN_DIR ?= $(HOME)/bin
 DATA_DIR ?= $(if $(XDG_DATA_HOME),$(XDG_DATA_HOME),$(HOME)/.local/share)
@@ -68,6 +68,9 @@ native-test:
 
 check-submodule-urls:
 	bash scripts/check_submodule_urls.sh
+
+kry-smoke:
+	sh scripts/kry_smoke.sh
 
 ANDROID_DIR := droid
 ANDROID_ABIS ?= armeabi-v7a,arm64-v8a

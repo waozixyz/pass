@@ -1,0 +1,180 @@
+#import "kryon.h"
+
+pass_generate :: (site: const char*, login: const char*, master: const char*, length: int, counter: int, lower: int, upper: int, digits: int, symbols: int, exclude: const char*) -> int #extern "pass.Generate"
+pass_generated :: () -> char* #extern "pass.Generated"
+pass_status :: () -> char* #extern "pass.Status"
+pass_copy :: () -> int #extern "pass.Copy"
+pass_save_master :: (master: const char*, require_biometric: int) -> int #extern "pass.SaveMaster"
+pass_unlock_master :: () -> int #extern "pass.UnlockMaster"
+pass_clear_master :: () -> int #extern "pass.ClearMaster"
+pass_profile_count :: () -> int #extern "pass.ProfileCount"
+pass_profile_label :: (index: int) -> char* #extern "pass.ProfileLabel"
+pass_apply_profile :: (index: int) -> int #extern "pass.ApplyProfile"
+pass_save_profile :: (name: const char*, site: const char*, login: const char*, length: int, counter: int, lower: int, upper: int, digits: int, symbols: int, exclude: const char*) -> int #extern "pass.SaveProfile"
+pass_delete_profile :: (index: int) -> int #extern "pass.DeleteProfile"
+pass_save_settings :: (auto_copy: int, clear_seconds: int, show_fingerprint: int) -> int #extern "pass.SaveSettings"
+
+ViewMode :: enum {
+    VIEW_GENERATE = 0
+    VIEW_PROFILES
+    VIEW_SETTINGS
+}
+
+state {
+    view: int = VIEW_GENERATE
+    site: [256] char = ""
+    site_cursor: int = 0
+    login: [256] char = ""
+    login_cursor: int = 0
+    master: [1024] char = ""
+    master_cursor: int = 0
+    exclude: [128] char = ""
+    exclude_cursor: int = 0
+    profile_name: [64] char = ""
+    profile_name_cursor: int = 0
+    length: int = 16
+    counter: int = 1
+    lower: int = 1
+    upper: int = 1
+    digits: int = 1
+    symbols: int = 1
+    reveal_master: int = 0
+    auto_copy: int = 0
+    clear_seconds: int = 20
+    show_fingerprint: int = 1
+    selected_profile: int = 0
+    profile_scroll: int = 0
+    settings_scroll: int = 0
+}
+
+app "Pass" {
+    size 390 740
+    fps 60
+    frame pass_frame
+}
+
+frame pass_frame {
+    BeginFrame()
+    Background(GetThemeBackground())
+    screen_w: int = GetScreenWidth()
+    screen_h: int = GetScreenHeight()
+    pad: int = ScaleUIPx(18)
+    top: int = ScaleUIPx(16)
+    content_w: int = screen_w - pad * 2
+    if content_w < ScaleUIPx(280) {
+        content_w = ScaleUIPx(280)
+    }
+
+    Text("Pass", pad, top, Text20, GetThemeText())
+    Text(pass_status(), pad + ScaleUIPx(72), top + ScaleUIPx(4), Text14, GetThemeIcon())
+
+    nav_y: int = top + ScaleUIPx(34)
+    if Button((ButtonProps){.bounds = {pad, nav_y, content_w / 3 - ScaleUIPx(6), ScaleUIPx(34)}, .label = "Generate", .style = ButtonStyleSecondary, .font = Text14, .id = 10}) {
+        view = VIEW_GENERATE
+    }
+    if Button((ButtonProps){.bounds = {pad + content_w / 3, nav_y, content_w / 3 - ScaleUIPx(6), ScaleUIPx(34)}, .label = "Profiles", .style = ButtonStyleSecondary, .font = Text14, .id = 11}) {
+        view = VIEW_PROFILES
+    }
+    if Button((ButtonProps){.bounds = {pad + (content_w / 3) * 2, nav_y, content_w / 3, ScaleUIPx(34)}, .label = "Settings", .style = ButtonStyleSecondary, .font = Text14, .id = 12}) {
+        view = VIEW_SETTINGS
+    }
+    Line(pad, screen_h - ScaleUIPx(6), pad + content_w, screen_h - ScaleUIPx(6), Fade(GetThemeIcon(), 0.24f))
+
+    y: int = nav_y + ScaleUIPx(52)
+    if view == VIEW_GENERATE {
+        Text("Site", pad, y, Text14, GetThemeText())
+        TextField((TextFieldProps){.bounds = {pad, y + ScaleUIPx(22), content_w, ScaleUIPx(38)}, .text = site, .text_size = sizeof(site), .cursor_position = &site_cursor, .focused = NULL, .max_codepoints = 255, .font = Text16, .focus_id = 101})
+        y += ScaleUIPx(72)
+        Text("Login", pad, y, Text14, GetThemeText())
+        TextField((TextFieldProps){.bounds = {pad, y + ScaleUIPx(22), content_w, ScaleUIPx(38)}, .text = login, .text_size = sizeof(login), .cursor_position = &login_cursor, .focused = NULL, .max_codepoints = 255, .font = Text16, .focus_id = 102})
+        y += ScaleUIPx(72)
+        Text("Master password", pad, y, Text14, GetThemeText())
+        if reveal_master == 0 {
+            TextField((TextFieldProps){.bounds = {pad, y + ScaleUIPx(22), content_w - ScaleUIPx(86), ScaleUIPx(38)}, .text = master, .text_size = sizeof(master), .cursor_position = &master_cursor, .focused = NULL, .max_codepoints = 1023, .font = Text16, .focus_id = 103, .secure = 1})
+        } else {
+            TextField((TextFieldProps){.bounds = {pad, y + ScaleUIPx(22), content_w - ScaleUIPx(86), ScaleUIPx(38)}, .text = master, .text_size = sizeof(master), .cursor_position = &master_cursor, .focused = NULL, .max_codepoints = 1023, .font = Text16, .focus_id = 103, .secure = 0})
+        }
+        if Button((ButtonProps){.bounds = {pad + content_w - ScaleUIPx(76), y + ScaleUIPx(22), ScaleUIPx(76), ScaleUIPx(38)}, .label = "Show", .style = ButtonStyleSecondary, .font = Text14, .id = 13}) {
+            reveal_master = 1 - reveal_master
+        }
+        y += ScaleUIPx(76)
+        Slider(20, pad, y, content_w, "Length", 4, 128, &length, "", nil)
+        y += ScaleUIPx(48)
+        Slider(21, pad, y, content_w, "Counter", 1, 999999, &counter, "", nil)
+        y += ScaleUIPx(50)
+        Row((RowProps){.bounds = {pad, y, content_w, ScaleUIPx(72)}, .gap = ScaleUIPx(8), .padding = 0, .key = Key("classes")})
+        Checkbox(31, 0, 0, "a-z", &lower)
+        Checkbox(32, 0, 0, "A-Z", &upper)
+        Checkbox(33, 0, 0, "0-9", &digits)
+        Checkbox(34, 0, 0, "#", &symbols)
+        End()
+        y += ScaleUIPx(72)
+        Text("Exclude", pad, y, Text14, GetThemeText())
+        TextField((TextFieldProps){.bounds = {pad, y + ScaleUIPx(22), content_w, ScaleUIPx(38)}, .text = exclude, .text_size = sizeof(exclude), .cursor_position = &exclude_cursor, .focused = NULL, .max_codepoints = 127, .font = Text16, .focus_id = 104})
+        y += ScaleUIPx(76)
+        if Button((ButtonProps){.bounds = {pad, y, content_w, ScaleUIPx(44)}, .label = "Generate", .style = ButtonStylePrimary, .font = Text16, .id = 40}) {
+            pass_generate(site, login, master, length, counter, lower, upper, digits, symbols, exclude)
+            if auto_copy == 1 {
+                pass_copy()
+            }
+        }
+        y += ScaleUIPx(60)
+        Text("Generated password", pad, y, Text14, GetThemeText())
+        TextInRect(pass_generated(), (Rectangle){pad, y + ScaleUIPx(22), content_w, ScaleUIPx(48)}, Text16, GetThemeText())
+        y += ScaleUIPx(82)
+        if Button((ButtonProps){.bounds = {pad, y, content_w / 2 - ScaleUIPx(6), ScaleUIPx(40)}, .label = "Copy", .style = ButtonStyleSecondary, .font = Text16, .id = 41}) {
+            pass_copy()
+        }
+        if Button((ButtonProps){.bounds = {pad + content_w / 2 + ScaleUIPx(6), y, content_w / 2 - ScaleUIPx(6), ScaleUIPx(40)}, .label = "Clear Master", .style = ButtonStyleSecondary, .font = Text16, .id = 42}) {
+            master[0] = 0
+            master_cursor = 0
+        }
+    } else if view == VIEW_PROFILES {
+        Text("Profile name", pad, y, Text14, GetThemeText())
+        TextField((TextFieldProps){.bounds = {pad, y + ScaleUIPx(22), content_w, ScaleUIPx(38)}, .text = profile_name, .text_size = sizeof(profile_name), .cursor_position = &profile_name_cursor, .focused = NULL, .max_codepoints = 63, .font = Text16, .focus_id = 201})
+        y += ScaleUIPx(76)
+        if Button((ButtonProps){.bounds = {pad, y, content_w, ScaleUIPx(42)}, .label = "Save Current Profile", .style = ButtonStylePrimary, .font = Text16, .id = 210}) {
+            pass_save_profile(profile_name, site, login, length, counter, lower, upper, digits, symbols, exclude)
+        }
+        y += ScaleUIPx(58)
+        count: int = pass_profile_count()
+        for int i = 0; i < count; i++ {
+            row_y: int = y + i * ScaleUIPx(48)
+            Text(pass_profile_label(i), pad, row_y + ScaleUIPx(10), Text16, GetThemeText())
+            if Button((ButtonProps){.bounds = {pad + content_w - ScaleUIPx(150), row_y, ScaleUIPx(68), ScaleUIPx(36)}, .label = "Use", .style = ButtonStyleSecondary, .font = Text14, .id = 300 + i}) {
+                selected_profile = i
+                pass_apply_profile(i)
+            }
+            if Button((ButtonProps){.bounds = {pad + content_w - ScaleUIPx(74), row_y, ScaleUIPx(74), ScaleUIPx(36)}, .label = "Delete", .style = ButtonStyleSecondary, .font = Text14, .id = 400 + i}) {
+                selected_profile = i
+                pass_delete_profile(i)
+            }
+        }
+    } else {
+        Checkbox(501, pad, y, "Auto-copy after Generate", &auto_copy)
+        y += ScaleUIPx(42)
+        Slider(502, pad, y, content_w, "Clipboard seconds", 0, 3600, &clear_seconds, "", nil)
+        y += ScaleUIPx(52)
+        Checkbox(503, pad, y, "Show master fingerprint", &show_fingerprint)
+        y += ScaleUIPx(52)
+        if Button((ButtonProps){.bounds = {pad, y, content_w, ScaleUIPx(42)}, .label = "Save Settings", .style = ButtonStylePrimary, .font = Text16, .id = 510}) {
+            pass_save_settings(auto_copy, clear_seconds, show_fingerprint)
+        }
+        y += ScaleUIPx(60)
+        Text("Secure master password", pad, y, Text16, GetThemeText())
+        y += ScaleUIPx(34)
+        if Button((ButtonProps){.bounds = {pad, y, content_w, ScaleUIPx(42)}, .label = "Save Master with Fingerprint", .style = ButtonStyleSecondary, .font = Text14, .id = 520}) {
+            pass_save_master(master, 1)
+        }
+        y += ScaleUIPx(52)
+        if Button((ButtonProps){.bounds = {pad, y, content_w / 2 - ScaleUIPx(6), ScaleUIPx(40)}, .label = "Unlock", .style = ButtonStyleSecondary, .font = Text16, .id = 521}) {
+            pass_unlock_master()
+        }
+        if Button((ButtonProps){.bounds = {pad + content_w / 2 + ScaleUIPx(6), y, content_w / 2 - ScaleUIPx(6), ScaleUIPx(40)}, .label = "Forget", .style = ButtonStyleSecondary, .font = Text16, .id = 522}) {
+            pass_clear_master()
+            master[0] = 0
+            master_cursor = 0
+        }
+    }
+    EndFrame()
+}

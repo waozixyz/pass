@@ -134,6 +134,8 @@ struct PassApp {
     int64_t master_expires_ms;
     int64_t generated_expires_ms;
     int scroll_offset;
+    int last_layout_w;
+    int last_layout_h;
 };
 
 static void
@@ -1336,6 +1338,12 @@ draw_narrow(PassApp *a, int width, int height, int top_reserved, int bottom_rese
     int y, cx, cy;
     Rectangle bounds;
 
+    if(a->last_layout_w != width || a->last_layout_h != height) {
+        a->scroll_offset = 0;
+        a->last_layout_w = width;
+        a->last_layout_h = height;
+    }
+
     if(card_h < 200)
         card_h = 200;
     switch(a->view) {
@@ -1388,7 +1396,7 @@ pass_app_draw(PassApp *a, int surface_w, int surface_h, float dpi,
     clipboard_tick(a);
     secret_tick(a);
     poll_secure_result(a);
-    if(ui_w >= 760 && ui_w > ui_h)
+    if(ui_w >= 760 && ui_w > ui_h && ui_h >= 760)
         draw_wide(a, ui_w, ui_h, top_reserved);
     else
         draw_narrow(a, ui_w, ui_h, top_reserved, bottom_reserved);
