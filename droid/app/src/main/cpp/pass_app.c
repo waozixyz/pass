@@ -6,6 +6,7 @@
 #include "pass_core.h"
 
 #include "android_bridge.h"
+#include "device_preferences.h"
 #include "kryon.h"
 #include "embedded_assets.h"
 #include "ui_icons.h"
@@ -56,6 +57,10 @@ typedef struct {
     int clear_after_seconds;
     int show_fingerprint;
     int use_biometric;
+    int theme_source;
+    int theme_mode;
+    int theme_id;
+    int theme_style;
     int length;
     int counter;
     int lower, upper, digits, symbols;
@@ -122,6 +127,7 @@ struct PassApp {
     AppView view;
     AppSettings settings;
     AppSettings persisted_settings;
+    UIThemeSettingsState theme_menu_state;
     SavedProfile profiles[MAX_PROFILES];
     int profile_count;
     int selected_profile;
@@ -165,10 +171,49 @@ default_settings(AppSettings *settings)
     settings->clear_after_seconds = 20;
     settings->show_fingerprint = 1;
     settings->use_biometric = 0;
+    settings->theme_source = THEME_SOURCE_SYSTEM;
+    settings->theme_mode = THEME_MODE_SYSTEM;
+    settings->theme_style = THEME_STYLE_SYSTEM;
+    settings->theme_id = GetDefaultThemeForThemeStyle(THEME_STYLE_MATERIAL);
     settings->length = 16;
     settings->counter = 1;
     settings->lower = settings->upper = settings->digits = settings->symbols = 1;
     settings->exclude[0] = '\0';
+}
+
+static int
+clamp_int(int value, int min_value, int max_value)
+{
+    if(value < min_value)
+        return min_value;
+    if(value > max_value)
+        return max_value;
+    return value;
+}
+
+static void
+normalize_theme_settings(AppSettings *settings)
+{
+    settings->theme_source = clamp_int(settings->theme_source, THEME_SOURCE_APP, THEME_SOURCE_SYSTEM);
+    settings->theme_mode = clamp_int(settings->theme_mode, THEME_MODE_SYSTEM, THEME_MODE_DARK);
+    settings->theme_id = clamp_int(settings->theme_id, 0, THEME_COUNT - 1);
+    if(settings->theme_style != THEME_STYLE_SYSTEM &&
+       settings->theme_style != THEME_STYLE_RETRO &&
+       settings->theme_style != THEME_STYLE_MATERIAL)
+        settings->theme_style = THEME_STYLE_SYSTEM;
+}
+
+static void
+apply_theme_settings(const AppSettings *settings)
+{
+    KryThemePreference pref;
+
+    memset(&pref, 0, sizeof(pref));
+    pref.source = (ThemeSource)settings->theme_source;
+    pref.mode = (ThemeMode)settings->theme_mode;
+    pref.style = (ThemeStyle)settings->theme_style;
+    pref.theme_id = settings->theme_id;
+    KryApplyThemePreference(pref);
 }
 
 static void
@@ -178,9 +223,7 @@ load_settings(PassApp *a)
     char line[128];
 
     default_settings(&a->settings);
-    if(f == NULL)
-        return;
-    while(fgets(line, sizeof(line), f) != NULL) {
+    while(f != NULL && fgets(line, sizeof(line), f) != NULL) {
         char *eq = strchr(line, '=');
         char *key, *value;
 
@@ -198,6 +241,14 @@ load_settings(PassApp *a)
             a->settings.show_fingerprint = atoi(value) != 0;
         else if(strcmp(key, "use_biometric") == 0)
             a->settings.use_biometric = atoi(value) != 0;
+        else if(strcmp(key, "theme_source") == 0)
+            a->settings.theme_source = atoi(value);
+        else if(strcmp(key, "theme_mode") == 0)
+            a->settings.theme_mode = atoi(value);
+        else if(strcmp(key, "theme_id") == 0)
+            a->settings.theme_id = atoi(value);
+        else if(strcmp(key, "theme_style") == 0)
+            a->settings.theme_style = atoi(value);
         else if(strcmp(key, "length") == 0)
             a->settings.length = atoi(value);
         else if(strcmp(key, "counter") == 0)
@@ -213,7 +264,8 @@ load_settings(PassApp *a)
         else if(strcmp(key, "exclude") == 0)
             copy_sanitized(a->settings.exclude, sizeof(a->settings.exclude), value);
     }
-    fclose(f);
+    if(f != NULL)
+        fclose(f);
     if(a->settings.clear_after_seconds < 0)
         a->settings.clear_after_seconds = 0;
     if(a->settings.clear_after_seconds > 3600)
@@ -226,6 +278,8 @@ load_settings(PassApp *a)
         a->settings.counter = 1;
     if(a->settings.counter > 999999)
         a->settings.counter = 999999;
+    normalize_theme_settings(&a->settings);
+    apply_theme_settings(&a->settings);
     a->length = a->settings.length;
     a->counter = a->settings.counter;
     a->lower = a->settings.lower;
@@ -256,6 +310,10 @@ write_settings(PassApp *a, int announce)
     fprintf(f, "clear_after_seconds=%d\n", a->settings.clear_after_seconds);
     fprintf(f, "show_fingerprint=%d\n", a->settings.show_fingerprint ? 1 : 0);
     fprintf(f, "use_biometric=%d\n", a->settings.use_biometric ? 1 : 0);
+    fprintf(f, "theme_source=%d\n", a->settings.theme_source);
+    fprintf(f, "theme_mode=%d\n", a->settings.theme_mode);
+    fprintf(f, "theme_id=%d\n", a->settings.theme_id);
+    fprintf(f, "theme_style=%d\n", a->settings.theme_style);
     fprintf(f, "length=%d\n", a->settings.length);
     fprintf(f, "counter=%d\n", a->settings.counter);
     fprintf(f, "lower=%d\n", a->settings.lower ? 1 : 0);
@@ -294,6 +352,10 @@ settings_match_current(PassApp *a)
            a->persisted_settings.clear_after_seconds == a->settings.clear_after_seconds &&
            a->persisted_settings.show_fingerprint == a->settings.show_fingerprint &&
            a->persisted_settings.use_biometric == a->settings.use_biometric &&
+           a->persisted_settings.theme_source == a->settings.theme_source &&
+           a->persisted_settings.theme_mode == a->settings.theme_mode &&
+           a->persisted_settings.theme_id == a->settings.theme_id &&
+           a->persisted_settings.theme_style == a->settings.theme_style &&
            strcmp(a->persisted_settings.exclude, exclude) == 0;
 }
 
@@ -1202,6 +1264,39 @@ draw_settings_page(PassApp *a, UIScrollArea area, int cx, int cy, int inner_w, i
     Color text = GetThemeText();
     TextInputStyle style = input_style();
     int half_w = (inner_w - 12) / 2;
+
+    label_text_px("APPEARANCE", cx, cy + ScaleUIPx(y), 12, scheme.primary);
+    y += 24;
+    {
+        ThemeSettingsProps props;
+        UIThemeSettingsResult result;
+
+        memset(&props, 0, sizeof(props));
+        memset(&result, 0, sizeof(result));
+        props.id_base = 700;
+        props.x = cx;
+        props.y = cy + ScaleUIPx(y);
+        props.w = ScaleUIPx(inner_w);
+        props.theme_source = &a->settings.theme_source;
+        props.theme_mode = &a->settings.theme_mode;
+        props.theme_id = &a->settings.theme_id;
+        props.theme_style = &a->settings.theme_style;
+        props.allow_system_source = 1;
+        props.allow_system_mode = 1;
+        props.palette_label = "Color palette";
+        props.source_system_label = "System colors";
+        props.mode_label = "Mode";
+        props.style_label = "Widget style";
+        props.style_system_label = "System style";
+        if(ThemeSettings(props, &a->theme_menu_state, &result)) {
+            normalize_theme_settings(&a->settings);
+            apply_theme_settings(&a->settings);
+            scheme = GetUIMaterialScheme();
+            text = GetThemeText();
+            style = input_style();
+        }
+    }
+    y += 230;
 
     label_text_px("PASSWORD DEFAULTS", cx, cy + ScaleUIPx(y), 12, scheme.primary);
     y += 24;

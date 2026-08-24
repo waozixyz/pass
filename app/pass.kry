@@ -12,7 +12,7 @@ pass_profile_label :: (index: int) -> char* #extern "pass.ProfileLabel"
 pass_apply_profile :: (index: int) -> int #extern "pass.ApplyProfile"
 pass_save_profile :: (name: const char*, site: const char*, login: const char*, length: int, counter: int, lower: int, upper: int, digits: int, symbols: int, exclude: const char*) -> int #extern "pass.SaveProfile"
 pass_delete_profile :: (index: int) -> int #extern "pass.DeleteProfile"
-pass_save_settings :: (auto_copy: int, clear_seconds: int, show_fingerprint: int) -> int #extern "pass.SaveSettings"
+pass_save_settings :: (auto_copy: int, clear_seconds: int, show_fingerprint: int, theme_source: int, theme_mode: int, theme_id: int, theme_style: int) -> int #extern "pass.SaveSettings"
 
 ViewMode :: enum {
     VIEW_GENERATE = 0
@@ -42,6 +42,11 @@ state {
     auto_copy: int = 0
     clear_seconds: int = 20
     show_fingerprint: int = 1
+    theme_source: int = THEME_SOURCE_SYSTEM
+    theme_mode: int = THEME_MODE_SYSTEM
+    theme_id: int = THEME_MINT
+    theme_style: int = THEME_STYLE_SYSTEM
+    theme_menu_state: UIThemeSettingsState
     selected_profile: int = 0
     profile_scroll: int = 0
     settings_scroll: int = 0
@@ -53,6 +58,42 @@ app "Pass" {
 }
 
 pass_frame :: () #ui {
+    if theme_source < THEME_SOURCE_APP {
+        theme_source = THEME_SOURCE_APP
+    }
+    if theme_source > THEME_SOURCE_SYSTEM {
+        theme_source = THEME_SOURCE_SYSTEM
+    }
+    if theme_mode < THEME_MODE_SYSTEM {
+        theme_mode = THEME_MODE_SYSTEM
+    }
+    if theme_mode > THEME_MODE_DARK {
+        theme_mode = THEME_MODE_DARK
+    }
+    if theme_style < THEME_STYLE_SYSTEM {
+        theme_style = THEME_STYLE_SYSTEM
+    }
+    if theme_style > THEME_STYLE_MATERIAL {
+        theme_style = THEME_STYLE_MATERIAL
+    }
+    if theme_id < 0 {
+        theme_id = 0
+    }
+    if theme_id >= THEME_COUNT {
+        theme_id = THEME_COUNT - 1
+    }
+    theme_dark: int = 0
+    if theme_mode == THEME_MODE_DARK {
+        theme_dark = 1
+    } else if theme_mode == THEME_MODE_SYSTEM {
+        if SystemThemePrefersDark() {
+            theme_dark = 1
+        }
+    }
+    SetThemeSource((ThemeSource)theme_source)
+    SetThemeMode((ThemeMode)theme_mode)
+    SetThemeStyle((ThemeStyle)theme_style)
+    SetCurrentTheme(theme_id, theme_dark)
     Background(GetThemeBackground())
     screen_w: int = GetScreenWidth()
     screen_h: int = GetScreenHeight()
@@ -147,6 +188,24 @@ pass_frame :: () #ui {
             }
         }
     } else {
+        settings := (ThemeSettingsProps){
+            .id_base = 600,
+            .x = pad,
+            .y = y,
+            .w = content_w,
+            .theme_source = &theme_source,
+            .theme_mode = &theme_mode,
+            .theme_id = &theme_id,
+            .theme_style = &theme_style,
+            .allow_system_source = 1,
+            .allow_system_mode = 1,
+            .palette_label = "Color palette",
+            .source_system_label = "System colors",
+            .style_label = "Widget style",
+            .style_system_label = "System style"
+        }
+        ThemeSettings(settings, &theme_menu_state, nil)
+        y += ScaleUIPx(230)
         Checkbox(501, pad, y, "Auto-copy after Generate", &auto_copy)
         y += ScaleUIPx(42)
         Slider(502, pad, y, content_w, "Clipboard seconds", 0, 3600, &clear_seconds, "", nil)
@@ -154,7 +213,7 @@ pass_frame :: () #ui {
         Checkbox(503, pad, y, "Show master fingerprint", &show_fingerprint)
         y += ScaleUIPx(52)
         if Button((ButtonProps){.bounds = {pad, y, content_w, ScaleUIPx(42)}, .label = "Save Settings", .style = ButtonStylePrimary, .font = Text16, .id = 510}) {
-            pass_save_settings(auto_copy, clear_seconds, show_fingerprint)
+            pass_save_settings(auto_copy, clear_seconds, show_fingerprint, theme_source, theme_mode, theme_id, theme_style)
         }
         y += ScaleUIPx(60)
         Text("Secure master password", pad, y, Text16, GetThemeText())
