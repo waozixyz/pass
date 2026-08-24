@@ -833,7 +833,7 @@ pass_app(void)
 /* ------------------------------------------------------------------ */
 
 static void
-draw_wide(PassApp *a, int width, int height, int top_reserved)
+draw_wide(PassApp *a, int view_x, int width, int height, int top_reserved)
 {
     UIMaterialScheme scheme = GetUIMaterialScheme();
     Color text = GetThemeText();
@@ -844,7 +844,7 @@ draw_wide(PassApp *a, int width, int height, int top_reserved)
     (void)height;
     if(content_w > 720)
         content_w = 720;
-    x = (width - content_w) / 2;
+    x = view_x + (width - content_w) / 2;
     y = top_reserved + 12;
 
     DrawRectangleRounded(scaled_rect((float)x, (float)y, (float)content_w, 550), 0.035f, 10, scheme.surface);
@@ -1322,11 +1322,11 @@ draw_settings_page(PassApp *a, UIScrollArea area, int cx, int cy, int inner_w, i
 }
 
 static void
-draw_narrow(PassApp *a, int width, int height, int top_reserved, int bottom_reserved)
+draw_narrow(PassApp *a, int view_x, int width, int height, int top_reserved, int bottom_reserved)
 {
     UIScrollArea area;
     UIScrollView view;
-    int card_x = 0;
+    int card_x = view_x;
     int card_y = top_reserved + 8;
     int card_w = width;
     int nav_reserved = 64;
@@ -1386,22 +1386,29 @@ draw_narrow(PassApp *a, int width, int height, int top_reserved, int bottom_rese
 
 void
 pass_app_draw(PassApp *a, int surface_w, int surface_h, float dpi,
-                int top_reserved, int bottom_reserved)
+                int left_reserved, int top_reserved,
+                int right_reserved, int bottom_reserved)
 {
     int ui_w = (int)(surface_w / (dpi > 0.0f ? dpi : 1.0f) + 0.5f);
     int ui_h = (int)(surface_h / (dpi > 0.0f ? dpi : 1.0f) + 0.5f);
+    int safe_x = left_reserved;
+    int safe_w = ui_w - left_reserved - right_reserved;
 
-    (void)ui_h;
+    if(safe_w < 280) {
+        safe_x = 0;
+        safe_w = ui_w;
+    }
     Background(GetThemeBackground());
     clipboard_tick(a);
     secret_tick(a);
     poll_secure_result(a);
-    if(ui_w >= 760 && ui_w > ui_h && ui_h >= 760)
-        draw_wide(a, ui_w, ui_h, top_reserved);
+    if(safe_w >= 760 && safe_w > ui_h && ui_h >= 760)
+        draw_wide(a, safe_x, safe_w, ui_h, top_reserved);
     else
-        draw_narrow(a, ui_w, ui_h, top_reserved, bottom_reserved);
+        draw_narrow(a, safe_x, safe_w, ui_h, top_reserved, bottom_reserved);
     autosave_settings(a);
-    draw_bottom_nav(a, surface_w, surface_h, ScaleUIPx(bottom_reserved));
+    draw_bottom_nav(a, surface_w - ScaleUIPx(right_reserved), surface_h,
+                    ScaleUIPx(bottom_reserved));
 }
 
 void

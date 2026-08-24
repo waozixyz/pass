@@ -141,7 +141,9 @@ main(int argc, char **argv)
 #endif
         BeginUIFrame(width, height, dpi);
         pass_app_draw(app, width, height, dpi,
+                        android_bridge_left_reserved(),
                         android_bridge_top_reserved(),
+                        android_bridge_right_reserved(),
                         android_bridge_bottom_reserved());
         EndUIFrame();
         EndDrawing();

@@ -62,8 +62,8 @@ public class MainActivity extends NativeActivity {
     private int secureStatus = SECURE_IDLE;
     private String secureResult = "";
 
-    private native void nativeSetInsets(int status, int nav, int ime,
-        int cutoutLeft, int cutoutTop, int cutoutRight, int cutoutBottom);
+    private native void nativeSetInsets(int left, int top, int right, int bottom,
+        int ime, int cutoutLeft, int cutoutTop, int cutoutRight, int cutoutBottom);
     private native void nativeSetDeviceDensity(float density);
     private native void nativeTextInputCommit(int codepoint);
     private native void nativeTextInputBackspace();
@@ -535,8 +535,10 @@ public class MainActivity extends NativeActivity {
 
         nativeSetDeviceDensity(getResources().getDisplayMetrics().density);
 
-        int statusBar = 0;
-        int navBar = 0;
+        int systemLeft = 0;
+        int systemTop = 0;
+        int systemRight = 0;
+        int systemBottom = 0;
         int imeBottom = 0;
         int cLeft = 0, cTop = 0, cRight = 0, cBottom = 0;
 
@@ -544,13 +546,17 @@ public class MainActivity extends NativeActivity {
             Insets systemBars = insets.getInsetsIgnoringVisibility(
                     WindowInsets.Type.systemBars());
             Insets ime = insets.getInsets(WindowInsets.Type.ime());
-            statusBar = systemBars.top;
-            navBar = systemBars.bottom;
+            systemLeft = systemBars.left;
+            systemTop = systemBars.top;
+            systemRight = systemBars.right;
+            systemBottom = systemBars.bottom;
             imeBottom = ime.bottom;
         } else {
-            statusBar = insets.getSystemWindowInsetTop();
-            navBar = insets.getSystemWindowInsetBottom();
-            imeBottom = inferImeBottom(navBar);
+            systemLeft = insets.getSystemWindowInsetLeft();
+            systemTop = insets.getSystemWindowInsetTop();
+            systemRight = insets.getSystemWindowInsetRight();
+            systemBottom = insets.getSystemWindowInsetBottom();
+            imeBottom = inferImeBottom(systemBottom);
         }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
@@ -563,7 +569,8 @@ public class MainActivity extends NativeActivity {
             }
         }
 
-        nativeSetInsets(statusBar, navBar, imeBottom, cLeft, cTop, cRight, cBottom);
+        nativeSetInsets(systemLeft, systemTop, systemRight, systemBottom,
+                imeBottom, cLeft, cTop, cRight, cBottom);
     }
 
     private int inferImeBottom(int navBar) {

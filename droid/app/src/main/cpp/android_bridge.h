@@ -9,10 +9,10 @@ extern "C" {
 void android_bridge_init(void);
 void android_bridge_apply_system_theme(void);
 
-/* Safe-area insets converted to UI units (java px / density). Returns 0
- * until Java has reported real values; callers should treat 0 as "unknown"
- * and keep a conservative margin. */
+/* Safe-area insets converted to UI units (java px / density). */
+int android_bridge_left_reserved(void);
 int android_bridge_top_reserved(void);
+int android_bridge_right_reserved(void);
 int android_bridge_bottom_reserved(void);
 
 /* Shows or hides the soft keyboard through the activity. */

@@ -50,11 +50,9 @@ state {
 app "Pass" {
     size 390 740
     fps 60
-    frame pass_frame
 }
 
-frame pass_frame {
-    BeginFrame()
+pass_frame :: () #ui {
     Background(GetThemeBackground())
     screen_w: int = GetScreenWidth()
     screen_h: int = GetScreenHeight()
@@ -102,12 +100,10 @@ frame pass_frame {
         y += ScaleUIPx(48)
         Slider(21, pad, y, content_w, "Counter", 1, 999999, &counter, "", nil)
         y += ScaleUIPx(50)
-        Row((RowProps){.bounds = {pad, y, content_w, ScaleUIPx(72)}, .gap = ScaleUIPx(8), .padding = 0, .key = Key("classes")})
-        Checkbox(31, 0, 0, "a-z", &lower)
-        Checkbox(32, 0, 0, "A-Z", &upper)
-        Checkbox(33, 0, 0, "0-9", &digits)
-        Checkbox(34, 0, 0, "#", &symbols)
-        End()
+        Checkbox(31, pad, y, "a-z", &lower)
+        Checkbox(32, pad + content_w / 4, y, "A-Z", &upper)
+        Checkbox(33, pad + content_w / 2, y, "0-9", &digits)
+        Checkbox(34, pad + (content_w / 4) * 3, y, "#", &symbols)
         y += ScaleUIPx(72)
         Text("Exclude", pad, y, Text14, GetThemeText())
         TextField((TextFieldProps){.bounds = {pad, y + ScaleUIPx(22), content_w, ScaleUIPx(38)}, .text = exclude, .text_size = sizeof(exclude), .cursor_position = &exclude_cursor, .focused = NULL, .max_codepoints = 127, .font = Text16, .focus_id = 104})
@@ -176,5 +172,4 @@ frame pass_frame {
             master_cursor = 0
         }
     }
-    EndFrame()
 }

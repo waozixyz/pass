@@ -28,10 +28,14 @@ extern struct android_app *GetAndroidApp(void);
 #define LOG_TAG "PASS_JNI"
 
 static pthread_mutex_t bridge_mutex = PTHREAD_MUTEX_INITIALIZER;
-static int insets_status_bar = 0;
-static int insets_nav_bar = 0;
+static int insets_system_left = 0;
+static int insets_system_top = 0;
+static int insets_system_right = 0;
+static int insets_system_bottom = 0;
 static int insets_ime_bottom = 0;
+static int insets_cutout_left = 0;
 static int insets_cutout_top = 0;
+static int insets_cutout_right = 0;
 static int insets_cutout_bottom = 0;
 static int insets_ready = 0;
 static float device_density = 0.0f;
@@ -84,10 +88,14 @@ void
 android_bridge_init(void)
 {
     pthread_mutex_lock(&bridge_mutex);
-    insets_status_bar = 0;
-    insets_nav_bar = 0;
+    insets_system_left = 0;
+    insets_system_top = 0;
+    insets_system_right = 0;
+    insets_system_bottom = 0;
     insets_ime_bottom = 0;
+    insets_cutout_left = 0;
     insets_cutout_top = 0;
+    insets_cutout_right = 0;
     insets_cutout_bottom = 0;
     insets_ready = 0;
     device_density = 0.0f;
@@ -158,13 +166,31 @@ done:
 }
 
 int
-android_bridge_top_reserved(void)
+android_bridge_left_reserved(void)
 {
-    int status, cutout, top, ready;
+    int system, cutout, ready;
     float density;
 
     pthread_mutex_lock(&bridge_mutex);
-    status = insets_status_bar;
+    system = insets_system_left;
+    cutout = insets_cutout_left;
+    density = device_density;
+    ready = insets_ready;
+    pthread_mutex_unlock(&bridge_mutex);
+
+    if(!ready)
+        return 0;
+    return scaled_inset(system > cutout ? system : cutout, density);
+}
+
+int
+android_bridge_top_reserved(void)
+{
+    int system, cutout, top, ready;
+    float density;
+
+    pthread_mutex_lock(&bridge_mutex);
+    system = insets_system_top;
     cutout = insets_cutout_top;
     density = device_density;
     ready = insets_ready;
@@ -172,18 +198,36 @@ android_bridge_top_reserved(void)
 
     if(!ready)
         return 28; /* conservative status-bar guess until Java reports */
-    top = status > cutout ? status : cutout;
+    top = system > cutout ? system : cutout;
     return scaled_inset(top, density);
+}
+
+int
+android_bridge_right_reserved(void)
+{
+    int system, cutout, ready;
+    float density;
+
+    pthread_mutex_lock(&bridge_mutex);
+    system = insets_system_right;
+    cutout = insets_cutout_right;
+    density = device_density;
+    ready = insets_ready;
+    pthread_mutex_unlock(&bridge_mutex);
+
+    if(!ready)
+        return 0;
+    return scaled_inset(system > cutout ? system : cutout, density);
 }
 
 int
 android_bridge_bottom_reserved(void)
 {
-    int nav, ime, cutout, bottom, ready;
+    int system, ime, cutout, bottom, ready;
     float density;
 
     pthread_mutex_lock(&bridge_mutex);
-    nav = insets_nav_bar;
+    system = insets_system_bottom;
     ime = insets_ime_bottom;
     cutout = insets_cutout_bottom;
     density = device_density;
@@ -192,7 +236,7 @@ android_bridge_bottom_reserved(void)
 
     if(!ready)
         return 48; /* conservative nav-bar guess until Java reports */
-    bottom = nav > cutout ? nav : cutout;
+    bottom = system > cutout ? system : cutout;
     if(ime > bottom)
         bottom = ime;
     return scaled_inset(bottom, density);
@@ -423,21 +467,24 @@ done:
 
 JNIEXPORT void JNICALL
 Java_xyz_waozi_pass_MainActivity_nativeSetInsets(JNIEnv *env, jobject thiz,
-                                                   jint status_bar, jint nav_bar,
+                                                   jint system_left, jint system_top,
+                                                   jint system_right, jint system_bottom,
                                                    jint ime_bottom,
                                                    jint cutout_left, jint cutout_top,
                                                    jint cutout_right, jint cutout_bottom)
 {
     (void)env;
     (void)thiz;
-    (void)cutout_left;
-    (void)cutout_right;
 
     pthread_mutex_lock(&bridge_mutex);
-    insets_status_bar = status_bar;
-    insets_nav_bar = nav_bar;
+    insets_system_left = system_left;
+    insets_system_top = system_top;
+    insets_system_right = system_right;
+    insets_system_bottom = system_bottom;
     insets_ime_bottom = ime_bottom;
+    insets_cutout_left = cutout_left;
     insets_cutout_top = cutout_top;
+    insets_cutout_right = cutout_right;
     insets_cutout_bottom = cutout_bottom;
     insets_ready = 1;
     pthread_mutex_unlock(&bridge_mutex);
@@ -485,7 +532,9 @@ Java_xyz_waozi_pass_MainActivity_nativeTextInputEnter(JNIEnv *env, jobject thiz)
 
 void android_bridge_init(void) {}
 void android_bridge_apply_system_theme(void) {}
+int android_bridge_left_reserved(void) { return 0; }
 int android_bridge_top_reserved(void) { return 0; }
+int android_bridge_right_reserved(void) { return 0; }
 int android_bridge_bottom_reserved(void) { return 0; }
 void android_bridge_set_soft_keyboard(int visible) { (void)visible; }
 int android_bridge_biometric_available(void) { return 0; }
