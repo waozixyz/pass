@@ -176,12 +176,7 @@ jobs:
           api-level: 35
           arch: x86_64
           target: google_apis
-          script: |
-            bash <<'EOF'
-            set -euo pipefail
-            chmod +x droid/gradlew
-            make android-input-test
-            EOF
+          script: make android-input-test
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
