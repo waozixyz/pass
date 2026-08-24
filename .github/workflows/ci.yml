@@ -173,9 +173,11 @@ jobs:
       - name: Run Android input tests
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 35
+          api-level: 30
           arch: x86_64
-          target: google_apis
+          target: default
+          emulator-boot-timeout: 900
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -no-metrics
           script: make android-input-test
       - uses: actions/upload-artifact@v4
         if: failure()
