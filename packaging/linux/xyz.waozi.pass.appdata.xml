@@ -11,5 +11,5 @@
   <launchable type="desktop-id">xyz.waozi.pass.desktop</launchable>
   <url type="homepage">https://github.com/waozixyz/pass</url>
   <provides><binary>pass-gui</binary></provides>
-  <releases><release version="0.2.6" date="2026-08-24"/><release version="0.2.5" date="2026-08-24"/><release version="0.2.4" date="2026-08-22"/><release version="0.2.3" date="2026-08-21"/><release version="0.2.2" date="2026-08-20"/><release version="0.2.1" date="2026-08-19"/><release version="0.2.0" date="2026-08-18"/><release version="0.1.3" date="2026-08-17"/><release version="0.1.2" date="2026-08-17"/><release version="0.1.1" date="2026-08-17"/><release version="0.1.0" date="2026-08-17"/></releases>
+  <releases><release version="0.2.7" date="2026-08-24"/><release version="0.2.6" date="2026-08-24"/><release version="0.2.5" date="2026-08-24"/><release version="0.2.4" date="2026-08-22"/><release version="0.2.3" date="2026-08-21"/><release version="0.2.2" date="2026-08-20"/><release version="0.2.1" date="2026-08-19"/><release version="0.2.0" date="2026-08-18"/><release version="0.1.3" date="2026-08-17"/><release version="0.1.2" date="2026-08-17"/><release version="0.1.1" date="2026-08-17"/><release version="0.1.0" date="2026-08-17"/></releases>
 </component>

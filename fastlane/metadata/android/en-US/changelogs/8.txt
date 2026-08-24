@@ -1,0 +1,1 @@
+- Fix Android source builds in stricter environments such as F-Droid builders while keeping Kry app source generation automatic.

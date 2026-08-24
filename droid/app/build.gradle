@@ -47,8 +47,8 @@ android {
         applicationId 'xyz.waozi.pass'
         minSdk 21
         targetSdk 36
-        versionCode 7
-        versionName "0.2.6"
+        versionCode 8
+        versionName "0.2.7"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         // Default to the two realistic phone targets; override with
         // -Pabi=x86_64 etc. for emulator builds.

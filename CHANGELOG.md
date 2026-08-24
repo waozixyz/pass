@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.2.7] - 2026-08-24
+
+- Fix Android source builds in stricter environments such as F-Droid builders
+  while keeping Kry app source generation automatic.
+
 ## [0.2.6] - 2026-08-24
 
 - Keep Android source builds self-contained so F-Droid and other source builds
