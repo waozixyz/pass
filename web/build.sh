@@ -3,15 +3,14 @@ set -eu
 
 root_dir=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 out_dir="$root_dir/build/site"
-goroot=$(go env GOROOT)
 
 rm -rf "$out_dir"
 mkdir -p "$out_dir/app"
 # Versioned asset names (AppImage, .deb) are templated into index.html from
-# version.go so the site always links the current release.
-version=$(sed -n 's/^const Version = "\([^"]*\)"$/\1/p' "$root_dir/version.go")
+# VERSION so the site always links the current release.
+version=$(sed -n '1p' "$root_dir/VERSION")
 if [ -z "$version" ]; then
-	echo "Could not read the version from version.go" >&2
+	echo "Could not read the version from VERSION" >&2
 	exit 1
 fi
 sed "s/\${version}/$version/g" "$root_dir/web/site/index.html" > "$out_dir/index.html"
@@ -32,11 +31,7 @@ cp "$root_dir/build/web-app/index.html" "$out_dir/app/index.html"
 cp "$root_dir/build/web-app/app.js" "$out_dir/app/app.js"
 cp "$root_dir/build/web-app/index.js" "$out_dir/app/index.js"
 cp "$root_dir/build/web-app/index.wasm" "$out_dir/app/index.wasm"
-cp "$goroot/lib/wasm/wasm_exec.js" "$out_dir/app/wasm_exec.js" 2>/dev/null || \
-	cp "$goroot/misc/wasm/wasm_exec.js" "$out_dir/app/wasm_exec.js"
-(cd "$root_dir/web/wasm" && GOOS=js GOARCH=wasm go build -o "$out_dir/app/pass.wasm" .)
 
-test -s "$out_dir/app/pass.wasm"
 test -s "$out_dir/app/index.wasm"
 test -s "$out_dir/home.js"
 printf 'built site at %s\n' "$out_dir"

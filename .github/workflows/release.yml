@@ -24,39 +24,30 @@ jobs:
         run: scripts/check_submodule_urls.sh
 
   cli:
-    name: CLI (${{ matrix.os }}-${{ matrix.arch }})
-    runs-on: ubuntu-latest
+    name: CLI (${{ matrix.arch }})
+    needs: guard-submodule-urls
     strategy:
       matrix:
-        os: [linux, darwin, windows, freebsd]
-        arch: [amd64, arm64]
+        include:
+          - runner: ubuntu-22.04
+            arch: amd64
+          - runner: ubuntu-24.04-arm
+            arch: arm64
+    runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with:
-          go-version: 1.24.x
-          cache: false
       - name: Build archive
-        env:
-          TARGET_OS: ${{ matrix.os }}
-          TARGET_ARCH: ${{ matrix.arch }}
         run: |
           set -euo pipefail
-          name="pass-cli-${TARGET_OS}-${TARGET_ARCH}"
+          make cli
+          name="pass-cli-linux-${{ matrix.arch }}"
           mkdir -p "build/release/$name"
-          suffix=""
-          [ "$TARGET_OS" = windows ] && suffix=".exe"
-          CGO_ENABLED=0 GOOS="$TARGET_OS" GOARCH="$TARGET_ARCH" go build -trimpath -ldflags='-s -w' -o "build/release/$name/pass$suffix" ./cmd/pass
-          cp LICENSE README.md "build/release/$name/"
-          if [ "$TARGET_OS" = windows ]; then
-            (cd build/release && zip -qr "$name.zip" "$name")
-          else
-            tar -C build/release -czf "build/release/$name.tar.gz" "$name"
-          fi
+          cp pass LICENSE README.md "build/release/$name/"
+          tar -C build/release -czf "build/release/$name.tar.gz" "$name"
       - uses: actions/upload-artifact@v4
         with:
-          name: cli-${{ matrix.os }}-${{ matrix.arch }}
-          path: build/release/pass-cli-${{ matrix.os }}-${{ matrix.arch }}.*
+          name: cli-linux-${{ matrix.arch }}
+          path: build/release/pass-cli-linux-${{ matrix.arch }}.tar.gz
           if-no-files-found: error
 
   gui:
@@ -74,10 +65,6 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
-      - uses: actions/setup-go@v5
-        with:
-          go-version: 1.25.x
-          cache: false
       - name: Install native dependencies
         run: |
           mapfile -t packages < .github/apt/gui-packages.txt
@@ -167,6 +154,7 @@ jobs:
           test -n "$KEYSTORE_PASSWORD" || { echo "::error::KEYSTORE_PASSWORD secret is empty or missing"; exit 1; }
           test -n "$KEY_ALIAS" || { echo "::error::KEY_ALIAS secret is empty or missing"; exit 1; }
           chmod +x droid/gradlew
+          make kry-c
           ./droid/gradlew -p droid assembleRelease \
             -PsplitApks=true \
             -Pkeystore.path="$HOME/.android/pass-release.keystore" \
@@ -193,10 +181,6 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
-      - uses: actions/setup-go@v5
-        with:
-          go-version: 1.24.x
-          cache: false
       - name: Install Emscripten
         run: |
           set -euo pipefail
@@ -231,7 +215,7 @@ jobs:
         name: Resolve release version
         run: |
           set -euo pipefail
-          version=$(sed -n 's/^const Version = "\([^"]*\)"/\1/p' version.go)
+          version=$(sed -n '1p' VERSION)
           test -n "$version"
           tag="v$version"
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
@@ -244,7 +228,7 @@ jobs:
         if: steps.version.outputs.released == 'true'
         run: |
           set -euo pipefail
-          VERSION=$(sed -n 's/^const Version = "\([^"]*\)"/\1/p' version.go)
+          VERSION=$(sed -n '1p' VERSION)
           TAG="v$VERSION"
           BASE="https://github.com/waozixyz/pass/releases/download/$TAG"
           # appcast channel names use dpkg arch naming (amd64/arm64);

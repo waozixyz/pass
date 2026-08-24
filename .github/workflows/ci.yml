@@ -34,10 +34,6 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
-      - uses: actions/setup-go@v5
-        with:
-          go-version: 1.25.x
-          cache: false
       - name: Install Emscripten
         run: |
           set -euo pipefail
@@ -46,18 +42,15 @@ jobs:
           "$HOME/emsdk/emsdk" activate latest
           echo "EM_CONFIG=$HOME/emsdk/.emscripten" >> "$GITHUB_ENV"
           echo "$HOME/emsdk/upstream/emscripten" >> "$GITHUB_PATH"
-      - name: Test CLI and generator
-        run: go test ./...
+      - name: Test C CLI, core, and Kry generator
+        run: make test
       - name: Build browser app
         run: make site
       - name: Verify generated site
         run: |
           test -s build/site/index.html
           test -s build/site/app/index.html
-          test -s build/site/app/pass.wasm
           test -s build/site/app/index.wasm
-      - name: Check formatting
-        run: test -z "$(find . -path ./vendor -prune -o -name '*.go' -type f -print | xargs gofmt -l)"
       - name: Check fastlane metadata
         run: |
           set -eu
@@ -96,10 +89,6 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
-      - uses: actions/setup-go@v5
-        with:
-          go-version: 1.25.x
-          cache: false
       - name: Install native dependencies
         run: |
           mapfile -t packages < .github/apt/gui-packages.txt
@@ -107,8 +96,6 @@ jobs:
           sudo apt-get install -y "${packages[@]}"
       - name: Build GUI
         run: make gui
-      - name: Test GUI logic
-        run: cd gui && go test ./...
       - name: Build Debian package
         run: make package-deb
       - uses: actions/upload-artifact@v4
@@ -148,7 +135,7 @@ jobs:
           path: |
             droid/app/.cxx
             droid/app/build/intermediates/cxx
-          key: android-native-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('droid/app/src/main/cpp/CMakeLists.txt', 'droid/app/build.gradle', 'native/*.c', 'droid/app/src/main/cpp/*.c', 'vendor/kryon/src/**/*.c', 'vendor/kryon/include/**/*.h', 'vendor/kryon/vendor/raylib/src/**') }}
+          key: android-native-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('app/*.kry', 'droid/app/src/main/cpp/CMakeLists.txt', 'droid/app/build.gradle', 'native/*.c', 'droid/app/src/main/cpp/*.c', 'vendor/kryon/src/**/*.c', 'vendor/kryon/include/**/*.h', 'vendor/kryon/vendor/raylib/src/**') }}
           restore-keys: |
             android-native-${{ runner.os }}-${{ runner.arch }}-
       - name: Install Android SDK components
@@ -162,3 +149,42 @@ jobs:
           set -euo pipefail
           chmod +x droid/gradlew
           make android-debug
+
+  android-input-test:
+    name: Android input instrumentation
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    needs: guard-submodule-urls
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@v3
+      - name: Install Android SDK components
+        run: |
+          set -euo pipefail
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" "platforms;android-36" "build-tools;34.0.0" "ndk;28.2.13676358" "cmake;3.22.1"
+      - name: Run Android input tests
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          target: google_apis
+          script: |
+            set -euo pipefail
+            chmod +x droid/gradlew
+            make android-input-test
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: android-input-test-reports
+          path: |
+            droid/app/build/reports/androidTests/
+            droid/app/build/outputs/androidTest-results/
+          if-no-files-found: ignore

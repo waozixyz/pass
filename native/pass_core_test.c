@@ -1,5 +1,5 @@
-/* Host-buildable vector test for pass_core.c. The vectors are copied from
- * the Go tests (pass_test.go) so the C generator stays byte-compatible. */
+/* Host-buildable vector test for pass_core.c. The vectors lock the generator
+ * output so CLI, desktop, Android, and web stay byte-compatible. */
 
 #include "pass_core.h"
 
@@ -19,7 +19,7 @@ check_generate(int index, const char *site, const char *login, const char *maste
 
     memset(out, 0, sizeof(out));
     memset(err, 0, sizeof(err));
-    result = pass_generate(site, login, master, &options, out, sizeof(out), err, sizeof(err));
+    result = pass_core_generate(site, login, master, &options, out, sizeof(out), err, sizeof(err));
 
     if(want_error) {
         if(result == 0) {
@@ -52,7 +52,7 @@ check_derive(int index, const char *password, const char *salt, const char *want
     char hex[65];
     int i;
 
-    pass_derive_key(password, strlen(password), salt, strlen(salt), out);
+    pass_core_derive_key(password, strlen(password), salt, strlen(salt), out);
     for(i = 0; i < 32; i++)
         sprintf(hex + i * 2, "%02x", out[i]);
     hex[64] = '\0';
@@ -72,7 +72,7 @@ check_sha256(void)
     char hex[65];
     int i;
 
-    pass_sha256("correct horse battery staple", strlen("correct horse battery staple"), out);
+    pass_core_sha256("correct horse battery staple", strlen("correct horse battery staple"), out);
     for(i = 0; i < 32; i++)
         sprintf(hex + i * 2, "%02x", out[i]);
     hex[64] = '\0';
@@ -83,6 +83,74 @@ check_sha256(void)
     } else {
         printf("ok   sha256: %s\n", hex);
     }
+}
+
+static int
+utf8_codepoint_count(const char *text)
+{
+    int count = 0;
+
+    if(text == NULL)
+        return 0;
+    for(int i = 0; text[i] != '\0'; i++) {
+        unsigned char c = (unsigned char)text[i];
+        if((c & 0xC0u) != 0x80u)
+            count++;
+    }
+    return count;
+}
+
+static void
+check_master_emoji(void)
+{
+    char first[64];
+    char again[64];
+    char empty[64];
+    char values[5][64];
+    int table_count = 0;
+    const int *table = pass_core_master_emoji_codepoints(&table_count);
+
+    if(table == NULL || table_count != 64) {
+        printf("FAIL master emoji: table count %d, want 64\n", table_count);
+        failures++;
+        return;
+    }
+
+    pass_core_master_emoji("correct horse battery staple", first, sizeof(first));
+    pass_core_master_emoji("correct horse battery staple", again, sizeof(again));
+    if(strcmp(first, again) != 0 ||
+       utf8_codepoint_count(first) != PASS_MASTER_EMOJI_COUNT) {
+        printf("FAIL master emoji: deterministic=%d count=%d value=%s\n",
+               strcmp(first, again) == 0,
+               utf8_codepoint_count(first), first);
+        failures++;
+        return;
+    }
+
+    pass_core_master_emoji("", empty, sizeof(empty));
+    if(utf8_codepoint_count(empty) != PASS_MASTER_EMOJI_COUNT) {
+        printf("FAIL master emoji: empty count=%d value=%s\n",
+               utf8_codepoint_count(empty), empty);
+        failures++;
+        return;
+    }
+
+    pass_core_master_emoji("test", values[0], sizeof(values[0]));
+    pass_core_master_emoji("test2", values[1], sizeof(values[1]));
+    pass_core_master_emoji("tset", values[2], sizeof(values[2]));
+    pass_core_master_emoji("hunter2", values[3], sizeof(values[3]));
+    pass_core_master_emoji("correct horse battery staple", values[4], sizeof(values[4]));
+    for(int i = 0; i < 5; i++) {
+        for(int j = i + 1; j < 5; j++) {
+            if(strcmp(values[i], values[j]) == 0) {
+                printf("FAIL master emoji: collision %d/%d = %s\n", i, j, values[i]);
+                failures++;
+                return;
+            }
+        }
+    }
+
+    printf("ok   master emoji: %s\n", first);
 }
 
 static void
@@ -107,7 +175,7 @@ check_shape(void)
     options.symbols = 1;
     options.exclude = exclude;
 
-    if(pass_generate("host", "account", "secret", &options, out, sizeof(out), err, sizeof(err)) != 0) {
+    if(pass_core_generate("host", "account", "secret", &options, out, sizeof(out), err, sizeof(err)) != 0) {
         printf("FAIL shape: %s\n", err);
         failures++;
         return;
@@ -156,6 +224,7 @@ main(void)
     check_derive(2, "", "examplealice1",
         "caa46554f5a676b76c15b368c655b0b24eaaad8595ef919999785c68e60fd5f5");
     check_sha256();
+    check_master_emoji();
 
     memset(&defaults, 0, sizeof(defaults));
     defaults.length = 16;

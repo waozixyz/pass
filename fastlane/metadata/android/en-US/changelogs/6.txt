@@ -1,0 +1,3 @@
+- Add Android appearance settings for following device colors, choosing light or dark mode, selecting a color palette, and switching widget style.
+- Use Android system Material colors for the app theme, with a stable Material fallback instead of the bright pink accent some devices report.
+- Recalculate the Android layout cleanly when rotating between portrait and landscape, keeping controls clear of system bars and navigation insets.

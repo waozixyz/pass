@@ -2,7 +2,7 @@
 set -eu
 
 root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-version=$(sed -n 's/^const Version = "\([^"]*\)"/\1/p' "$root/version.go")
+version=$(sed -n '1p' "$root/VERSION")
 arch=${APPIMAGE_ARCH:-$(uname -m)}
 linuxdeploy=${LINUXDEPLOY:-linuxdeploy}
 appdir="$root/build/package/appimage/pass.AppDir"

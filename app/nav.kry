@@ -1,0 +1,59 @@
+#import "kryon.h"
+
+state {
+    nav_icons_loaded: int = 0
+    nav_generate_icon: Texture2D
+    nav_profiles_icon: Texture2D
+    nav_settings_icon: Texture2D
+}
+
+nav_load_icons :: () #private {
+    if nav_icons_loaded == 1 {
+        return
+    }
+
+    nav_generate_icon = LoadUIIconTexture(UI_ICON_TYPE_HOME)
+    nav_profiles_icon = LoadUIIconTexture(UI_ICON_TYPE_PROFILE)
+    nav_settings_icon = LoadUIIconTexture(UI_ICON_TYPE_GEAR)
+    nav_icons_loaded = 1
+}
+
+nav_draw :: (x: int, y: int, width: int, height: int, view: int*) {
+    nav_load_icons()
+
+    generate_active: int = 0
+    profiles_active: int = 0
+    settings_active: int = 0
+    if *view == 0 {
+        generate_active = 1
+    }
+    if *view == 1 {
+        profiles_active = 1
+    }
+    if *view == 2 {
+        settings_active = 1
+    }
+
+    items: [3] BottomNavItem = {
+        {0, "Generate", nav_generate_icon, generate_active, 0},
+        {1, "Profiles", nav_profiles_icon, profiles_active, 0},
+        {2, "Settings", nav_settings_icon, settings_active, 0}
+    }
+
+    result := BottomNav((BottomNavProps){
+        .view_width = GetScreenWidth(),
+        .view_height = GetScreenHeight(),
+        .count = 3,
+        .items = items,
+        .height = height,
+        .icon_size = ScaleUIPx(22),
+        .icon_padding = ScaleUIPx(8),
+        .side_margin = x,
+        .bottom_margin = GetScreenHeight() - y - height,
+        .max_button_width = width / 3
+    })
+
+    if result.clicked_route >= 0 {
+        *view = result.clicked_route
+    }
+}

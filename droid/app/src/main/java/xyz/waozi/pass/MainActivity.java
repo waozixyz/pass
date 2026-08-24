@@ -3,7 +3,6 @@ package xyz.waozi.pass;
 import android.app.NativeActivity;
 import android.app.KeyguardManager;
 import android.content.SharedPreferences;
-import android.content.res.ColorStateList;
 import android.content.res.Configuration;
 import android.graphics.Insets;
 import android.graphics.Rect;
@@ -15,13 +14,11 @@ import android.os.CancellationSignal;
 import android.security.keystore.UserNotAuthenticatedException;
 import android.security.keystore.KeyGenParameterSpec;
 import android.security.keystore.KeyProperties;
-import android.util.TypedValue;
 import android.view.DisplayCutout;
-import android.view.KeyEvent;
 import android.view.View;
+import android.view.ViewGroup;
 import android.view.ViewTreeObserver;
 import android.view.WindowInsets;
-import android.view.inputmethod.InputMethodManager;
 import android.content.Context;
 
 import java.nio.charset.StandardCharsets;
@@ -57,10 +54,10 @@ public class MainActivity extends NativeActivity {
         System.loadLibrary("main");
     }
 
-    private int lastDeleteRepeatCount = -1;
     private final Object secureLock = new Object();
     private int secureStatus = SECURE_IDLE;
     private String secureResult = "";
+    private TextInputBridge textInputBridge;
 
     private native void nativeSetInsets(int left, int top, int right, int bottom,
         int ime, int cutoutLeft, int cutoutTop, int cutoutRight, int cutoutBottom);
@@ -74,6 +71,7 @@ public class MainActivity extends NativeActivity {
         super.onCreate(savedInstanceState);
         applySystemBars();
         setupInsetsListener();
+        setupTextInputBridge();
     }
 
     public int[] systemThemeColors() {
@@ -82,8 +80,7 @@ public class MainActivity extends NativeActivity {
         int background = dark ? 0xFF141218 : 0xFFFFFBFE;
         int surface = dark ? 0xFF211F26 : 0xFFF7F2FA;
         int text = dark ? 0xFFE6E0E9 : 0xFF1D1B20;
-        int accent = resolveThemeColor(android.R.attr.colorAccent,
-                dark ? 0xFFD0BCFF : 0xFF6750A4);
+        int accent = dark ? 0xFFD0BCFF : 0xFF6750A4;
         int control = dark ? 0xFFE6E0E9 : 0xFF1D1B20;
         int button = blend(accent, background, dark ? 65 : 80);
         int buttonHover = blend(accent, background, dark ? 45 : 60);
@@ -121,32 +118,6 @@ public class MainActivity extends NativeActivity {
             }
             getWindow().getDecorView().setSystemUiVisibility(flags);
         }
-    }
-
-    private int resolveThemeColor(int attr, int fallback) {
-        TypedValue value = new TypedValue();
-        if (!getTheme().resolveAttribute(attr, value, true)) {
-            return fallback;
-        }
-        if (value.type >= TypedValue.TYPE_FIRST_COLOR_INT
-                && value.type <= TypedValue.TYPE_LAST_COLOR_INT) {
-            return value.data;
-        }
-        if (value.resourceId != 0) {
-            try {
-                ColorStateList list;
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                    list = getResources().getColorStateList(value.resourceId, getTheme());
-                } else {
-                    list = getResources().getColorStateList(value.resourceId);
-                }
-                if (list != null) {
-                    return list.getDefaultColor();
-                }
-            } catch (Exception ignored) {
-            }
-        }
-        return fallback;
     }
 
     private static int blend(int from, int to, int percentTo) {
@@ -287,7 +258,7 @@ public class MainActivity extends NativeActivity {
         }
         synchronized (secureLock) {
             secureStatus = SECURE_PENDING;
-            secureResult = "Waiting for biometric unlock";
+            secureResult = "";
         }
         runOnUiThread(new Runnable() {
             @Override
@@ -302,7 +273,7 @@ public class MainActivity extends NativeActivity {
                     .setTitle(title)
                     .setSubtitle(subtitle)
                     .setDescription(description)
-                    .setNegativeButton("Cancel", executor, (dialog, which) -> setSecureError("Unlock canceled"))
+                    .setNegativeButton("Cancel", executor, (dialog, which) -> setSecureError("Canceled"))
                     .build();
                 prompt.authenticate(new CancellationSignal(), executor,
                     new BiometricPrompt.AuthenticationCallback() {
@@ -342,7 +313,7 @@ public class MainActivity extends NativeActivity {
             editor.putBoolean(PREF_BIOMETRIC, requireBiometric);
             editor.putString(PREF_KEY_ALIAS, requireBiometric ? KEY_ALIAS_AUTH : KEY_ALIAS_PLAIN);
             editor.apply();
-            setSecureOk(requireBiometric ? "Master password saved with fingerprint" : "Master password saved");
+            setSecureOk("Master password saved");
         } catch (UserNotAuthenticatedException e) {
             setSecureError("Unlock with fingerprint first");
         } catch (Exception e) {
@@ -432,66 +403,35 @@ public class MainActivity extends NativeActivity {
         return android.util.Base64.decode(text, android.util.Base64.NO_WRAP);
     }
 
+    private void setupTextInputBridge() {
+        textInputBridge = new TextInputBridge(this, new TextInputBridge.Callbacks() {
+            @Override
+            public void commitText(int codepoint) {
+                nativeTextInputCommit(codepoint);
+            }
+
+            @Override
+            public void backspace() {
+                nativeTextInputBackspace();
+            }
+
+            @Override
+            public void enter() {
+                nativeTextInputEnter();
+            }
+        });
+        addContentView(textInputBridge.getView(), new ViewGroup.LayoutParams(1, 1));
+    }
+
     public void setSoftKeyboardVisible(final boolean visible) {
         runOnUiThread(new Runnable() {
             @Override
             public void run() {
-                InputMethodManager imm =
-                    (InputMethodManager)getSystemService(Context.INPUT_METHOD_SERVICE);
-                View view = getWindow() != null ? getWindow().getDecorView() : null;
-                if (imm == null || view == null) return;
-
-                if (visible) {
-                    view.requestFocus();
-                    imm.showSoftInput(view, InputMethodManager.SHOW_FORCED);
-                } else {
-                    imm.hideSoftInputFromWindow(view.getWindowToken(), 0);
+                if (textInputBridge != null) {
+                    textInputBridge.setVisible(visible);
                 }
             }
         });
-    }
-
-    @Override
-    public boolean dispatchKeyEvent(KeyEvent event) {
-        if (event != null && event.getAction() == KeyEvent.ACTION_DOWN) {
-            int keyCode = event.getKeyCode();
-            if (keyCode == KeyEvent.KEYCODE_DEL) {
-                int repeatCount = event.getRepeatCount();
-                int deleteCount = lastDeleteRepeatCount < 0
-                    ? 1
-                    : Math.max(1, repeatCount - lastDeleteRepeatCount);
-                lastDeleteRepeatCount = repeatCount;
-                for (int i = 0; i < deleteCount; i++) {
-                    nativeTextInputBackspace();
-                }
-            } else if (keyCode == KeyEvent.KEYCODE_ENTER ||
-                       keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER) {
-                lastDeleteRepeatCount = -1;
-                nativeTextInputEnter();
-            } else {
-                lastDeleteRepeatCount = -1;
-                int unicode = event.getUnicodeChar();
-                if (unicode >= 32) {
-                    nativeTextInputCommit(unicode);
-                }
-            }
-        } else if (event != null && event.getAction() == KeyEvent.ACTION_UP) {
-            if (event.getKeyCode() == KeyEvent.KEYCODE_DEL) {
-                lastDeleteRepeatCount = -1;
-            }
-        } else if (event != null && event.getAction() == KeyEvent.ACTION_MULTIPLE &&
-                   event.getCharacters() != null) {
-            lastDeleteRepeatCount = -1;
-            String chars = event.getCharacters();
-            for (int i = 0; i < chars.length();) {
-                int codepoint = chars.codePointAt(i);
-                if (codepoint >= 32) {
-                    nativeTextInputCommit(codepoint);
-                }
-                i += Character.charCount(codepoint);
-            }
-        }
-        return super.dispatchKeyEvent(event);
     }
 
     private void setupInsetsListener() {

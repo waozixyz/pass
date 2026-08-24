@@ -47,8 +47,9 @@ android {
         applicationId 'xyz.waozi.pass'
         minSdk 21
         targetSdk 36
-        versionCode 5
-        versionName "0.2.4"
+        versionCode 6
+        versionName "0.2.5"
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         // Default to the two realistic phone targets; override with
         // -Pabi=x86_64 etc. for emulator builds.
         def abis = project.findProperty('abi') ?: 'armeabi-v7a,arm64-v8a'
@@ -91,4 +92,10 @@ android {
             useLegacyPackaging = true
         }
     }
+}
+
+dependencies {
+    androidTestImplementation 'androidx.test:runner:1.6.2'
+    androidTestImplementation 'androidx.test:rules:1.6.1'
+    androidTestImplementation 'androidx.test.ext:junit:1.2.1'
 }

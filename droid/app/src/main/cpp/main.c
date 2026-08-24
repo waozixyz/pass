@@ -10,7 +10,8 @@
 #include "ui_text.h"
 
 #include "android_bridge.h"
-#include "pass_app.h"
+#include "app/pass.h"
+#include "pass_runtime.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -21,7 +22,7 @@
 #endif
 
 static const char *const FONT_ASSET_PATH = "vendor/kryon/fonts/noto/NotoSans-Regular.ttf";
-static const char *const EMOJI_FONT_ASSET_PATH = "gui/assets/emoji.ttf";
+static const char *const EMOJI_FONT_ASSET_PATH = "assets/fonts/emoji.ttf";
 
 /* Kryon's shape drawing rides on a 1x1 white texture so rectangles tint
  * cleanly on the GL ES surface (same setup inbe performs on Android). */
@@ -64,7 +65,7 @@ setup_emoji_font(void)
 {
     const EmbeddedAsset *asset = GetEmbeddedAsset(EMOJI_FONT_ASSET_PATH);
     int codepoint_count = 0;
-    const int *codepoints = pass_app_master_emoji_codepoints(&codepoint_count);
+    const int *codepoints = pass_runtime_master_emoji_codepoints(&codepoint_count);
 
     if(asset == NULL || asset->data == NULL || asset->size == 0) {
         TraceLog(LOG_WARNING, "PASS: missing embedded emoji font asset");
@@ -81,7 +82,6 @@ setup_emoji_font(void)
 int
 main(int argc, char **argv)
 {
-    PassApp *app;
     int window_width = 720;
     int window_height = 740;
 
@@ -118,7 +118,7 @@ main(int argc, char **argv)
     SetTextInputPlatformCallback(android_bridge_set_soft_keyboard);
     SetTargetFPS(60);
 
-    app = pass_app();
+    pass_runtime_init();
     TraceLog(LOG_INFO, "PASS: app ready");
     while(!WindowShouldClose()) {
         int width = GetScreenWidth();
@@ -140,16 +140,13 @@ main(int argc, char **argv)
         SyncAndroidSurfaceSize(&width, &height);
 #endif
         BeginUIFrame(width, height, dpi);
-        pass_app_draw(app, width, height, dpi,
-                        android_bridge_left_reserved(),
-                        android_bridge_top_reserved(),
-                        android_bridge_right_reserved(),
-                        android_bridge_bottom_reserved());
+        pass_runtime_tick();
+        pass_frame();
         EndUIFrame();
         EndDrawing();
     }
 
-    pass_app_shutdown(app);
+    pass_runtime_shutdown();
     CloseWindow();
     return 0;
 }

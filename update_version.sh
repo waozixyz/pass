@@ -12,7 +12,7 @@ if [ -z "$release_date" ]; then
 	exit 1
 fi
 
-sed -E -i "s/^const Version = \"[^\"]+\"$/const Version = \"$release_version\"/" version.go
+printf '%s\n' "$release_version" > VERSION
 
 # Android versionName and versionCode: bump the code only when preparing a
 # different release, so rerunning this script for the same version is
@@ -35,7 +35,7 @@ metainfo=packaging/linux/xyz.waozi.pass.appdata.xml
 if ! grep -F "<release version=\"$release_version\"" "$metainfo" >/dev/null; then
 	sed -E -i "s#<releases>#<releases><release version=\"$release_version\" date=\"$release_date\"/>#" "$metainfo"
 fi
-grep -F "const Version = \"$release_version\"" version.go >/dev/null
+grep -Fx "$release_version" VERSION >/dev/null
 grep -F "versionName \"$release_version\"" "$gradle_file" >/dev/null
 grep -E "^[[:space:]]*versionCode $release_code$" "$gradle_file" >/dev/null
 grep -F "<release version=\"$release_version\" date=\"$release_date\"" "$metainfo" >/dev/null

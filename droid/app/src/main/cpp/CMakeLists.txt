@@ -3,6 +3,7 @@ project(Pass C)
 
 set(REPO_ROOT "${CMAKE_CURRENT_LIST_DIR}/../../../../..")
 set(KRYON_DIR "${REPO_ROOT}/vendor/kryon")
+set(KRY_GENERATED_DIR "${REPO_ROOT}/build/krygen/c")
 set(RAYLIB_DIR "${KRYON_DIR}/vendor/raylib/src")
 set(PASS_NATIVE_DIR "${REPO_ROOT}/native")
 set(NATIVE_APP_GLUE_DIR "${ANDROID_NDK}/sources/android/native_app_glue")
@@ -32,7 +33,7 @@ list(FILTER KRYON_SOURCES EXCLUDE REGEX "${KRYON_DIR}/src/platform/plan9/.*")
 list(FILTER KRYON_SOURCES EXCLUDE REGEX "${KRYON_DIR}/src/platform/web/.*")
 
 set(PASS_FONT_ASSET "vendor/kryon/fonts/noto/NotoSans-Regular.ttf")
-set(PASS_EMOJI_FONT_ASSET "gui/assets/emoji.ttf")
+set(PASS_EMOJI_FONT_ASSET "assets/fonts/emoji.ttf")
 set(PASS_EMBEDDED_ASSETS_C "${CMAKE_BINARY_DIR}/pass_embedded_assets.c")
 add_custom_command(
     OUTPUT "${PASS_EMBEDDED_ASSETS_C}"
@@ -81,9 +82,13 @@ target_include_directories(raylib PUBLIC
 
 add_library(main SHARED
     main.c
-    pass_app.c
     android_bridge.c
     "${PASS_NATIVE_DIR}/pass_core.c"
+    "${PASS_NATIVE_DIR}/pass_runtime.c"
+    "${KRY_GENERATED_DIR}/app/nav.c"
+    "${KRY_GENERATED_DIR}/app/pass.c"
+    "${KRY_GENERATED_DIR}/app/profiles.c"
+    "${KRY_GENERATED_DIR}/app/settings.c"
     "${PASS_EMBEDDED_ASSETS_C}"
     ${KRYON_SOURCES}
     "${NATIVE_APP_GLUE_DIR}/android_native_app_glue.c"
@@ -92,7 +97,9 @@ add_library(main SHARED
 target_include_directories(main PRIVATE
     "${KRYON_DIR}/include"
     "${KRYON_DIR}/src"
+    "${KRY_GENERATED_DIR}"
     "${PASS_NATIVE_DIR}"
+    "${CMAKE_CURRENT_LIST_DIR}"
     "${NATIVE_APP_GLUE_DIR}"
 )
 

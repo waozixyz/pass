@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.2.5] - 2026-08-24
+
+- Add Android appearance settings for following device colors, choosing
+  light or dark mode, selecting a color palette, and switching widget style.
+- Use Android system Material colors for the app theme, with a stable Material
+  fallback instead of the bright pink accent some devices report.
+- Recalculate the Android layout cleanly when rotating between portrait and
+  landscape, keeping controls clear of system bars and navigation insets.
+
 ## [0.2.4] - 2026-08-22
 
 - Save and reuse Android master-password defaults, with fingerprint unlock

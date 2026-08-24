@@ -253,12 +253,18 @@ android_bridge_set_soft_keyboard(int visible)
     int attached;
 
     attached = activity_env(&env, &jvm, &activity);
-    if(attached < 0)
+    if(attached < 0) {
+        __android_log_print(ANDROID_LOG_ERROR, LOG_TAG,
+                            "soft keyboard %d: no activity env", visible);
         return;
+    }
 
     activity_class = (*env)->GetObjectClass(env, activity);
-    if(activity_class == NULL)
+    if(activity_class == NULL) {
+        __android_log_print(ANDROID_LOG_ERROR, LOG_TAG,
+                            "soft keyboard %d: no activity class", visible);
         goto done;
+    }
 
     method = (*env)->GetMethodID(env, activity_class, "setSoftKeyboardVisible", "(Z)V");
     if(method == NULL) {
@@ -442,6 +448,8 @@ android_bridge_take_secure_result(char *out, int out_size)
     if(method == NULL)
         goto done;
     status = (int)(*env)->CallIntMethod(env, activity, method);
+    if(status != 2 && status != 3)
+        goto done;
     method = (*env)->GetMethodID(env, activity_class, "takeSecureMasterResult", "()Ljava/lang/String;");
     if(method == NULL)
         goto done;

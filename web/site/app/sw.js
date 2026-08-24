@@ -1,5 +1,5 @@
 const cacheName = 'pass-app-v3';
-const appFiles = ['/app/', '/app/app.js', '/app/index.js', '/app/index.wasm', '/app/wasm_exec.js', '/app/pass.wasm', '/manifest.webmanifest', '/icons/icon-192.png', '/icons/icon-512.png'];
+const appFiles = ['/app/', '/app/app.js', '/app/index.js', '/app/index.wasm', '/manifest.webmanifest', '/icons/icon-192.png', '/icons/icon-512.png'];
 self.addEventListener('install', event => {
   self.skipWaiting();
   event.waitUntil(caches.open(cacheName).then(cache => cache.addAll(appFiles)));

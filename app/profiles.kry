@@ -1,0 +1,38 @@
+#import "kryon.h"
+
+pass_profile_count :: () -> int #extern "pass_profile_count"
+pass_profile_label :: (index: int) -> char* #extern "pass_profile_label"
+pass_generate_profile :: (index: int, master: const char*) -> int #extern "pass_generate_profile"
+pass_delete_profile :: (index: int) -> int #extern "pass_delete_profile"
+
+profiles_draw_list :: (x: int, y: int, width: int, master: [1024] char) -> int {
+    count: int = pass_profile_count()
+
+    if count == 0 {
+        Text("No saved profiles", x, y, Text16, GetThemeIcon())
+        return y + ScaleUIPx(48)
+    }
+
+    for int i = 0; i < count; i++ {
+        row_y: int = y + i * ScaleUIPx(48)
+
+        Text(pass_profile_label(i), x, row_y + ScaleUIPx(10), Text16, GetThemeText())
+        if Button((ButtonProps){.bounds = {x + width - ScaleUIPx(170), row_y, ScaleUIPx(88), ScaleUIPx(36)}, .label = "Generate", .style = ButtonStyleSecondary, .font = Text14, .id = 300 + i}) {
+            pass_generate_profile(i, master)
+        }
+        if Button((ButtonProps){.bounds = {x + width - ScaleUIPx(74), row_y, ScaleUIPx(74), ScaleUIPx(36)}, .label = "Delete", .style = ButtonStyleSecondary, .font = Text14, .id = 400 + i}) {
+            pass_delete_profile(i)
+        }
+    }
+
+    return y + count * ScaleUIPx(48)
+}
+
+profiles_content_height :: () -> int {
+    count: int = pass_profile_count()
+    list_h: int = ScaleUIPx(48)
+    if count > 0 {
+        list_h = count * ScaleUIPx(48)
+    }
+    return ScaleUIPx(76) + ScaleUIPx(58) + list_h + ScaleUIPx(110)
+}

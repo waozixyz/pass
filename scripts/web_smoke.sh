@@ -17,7 +17,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-for file in "$site_dir/app/index.html" "$site_dir/app/app.js" "$site_dir/app/index.js" "$site_dir/app/index.wasm" "$site_dir/app/pass.wasm"; do
+for file in "$site_dir/app/index.html" "$site_dir/app/app.js" "$site_dir/app/index.js" "$site_dir/app/index.wasm"; do
   if [ ! -s "$file" ]; then
     echo "missing web build artifact: $file" >&2
     exit 1

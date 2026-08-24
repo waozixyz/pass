@@ -1,6 +1,5 @@
-/* C port of the pass Go generator (pass.go, pbkdf2.go). The output is
- * byte-identical to the Go implementation; native/pass_core_test.c checks
- * the same fixed vectors the Go tests use. */
+/* LessPass-compatible generator used by the CLI and every Kry app target.
+ * native/pass_core_test.c checks fixed vectors for byte stability. */
 
 #include "pass_core.h"
 
@@ -176,9 +175,86 @@ sha256(const void *data, size_t len, uint8_t out[32])
 }
 
 void
-pass_sha256(const void *data, size_t len, uint8_t out[32])
+pass_core_sha256(const void *data, size_t len, uint8_t out[32])
 {
     sha256(data, len, out);
+}
+
+static const int MASTER_EMOJI_CODEPOINTS[] = {
+    0x1F436, 0x1F431, 0x1F42D, 0x1F439, 0x1F430, 0x1F98A, 0x1F43B, 0x1F43C,
+    0x1F428, 0x1F42F, 0x1F981, 0x1F42E, 0x1F437, 0x1F438, 0x1F435, 0x1F414,
+    0x1F427, 0x1F989, 0x1F43A, 0x1F434, 0x1F984, 0x1F41D, 0x1F98B, 0x1F422,
+    0x1F34E, 0x1F34A, 0x1F34B, 0x1F349, 0x1F347, 0x1F353, 0x1F352, 0x1F351,
+    0x1F951, 0x1F33D, 0x1F355, 0x1F354, 0x1F35F, 0x1F369, 0x1F335, 0x1F332,
+    0x1F333, 0x1F334, 0x1F331, 0x1F33B, 0x1F338, 0x1F308, 0x2B50, 0x1F319,
+    0x1F525, 0x1F4A7, 0x26C4, 0x1F389, 0x1F3B8, 0x1F3AF, 0x1F3B2, 0x1F381,
+    0x1F680, 0x1F697, 0x2693, 0x1F3A8, 0x1F511, 0x1F4A1, 0x1F4DA, 0x1F3A7,
+};
+
+const int *
+pass_core_master_emoji_codepoints(int *count)
+{
+    if(count != NULL)
+        *count = (int)(sizeof(MASTER_EMOJI_CODEPOINTS) /
+                       sizeof(MASTER_EMOJI_CODEPOINTS[0]));
+    return MASTER_EMOJI_CODEPOINTS;
+}
+
+static size_t
+append_utf8(char *out, size_t used, size_t out_size, uint32_t codepoint)
+{
+    unsigned char bytes[4];
+    int len = 0;
+
+    if(out == NULL || out_size == 0)
+        return 0;
+    if(codepoint <= 0x7Fu) {
+        bytes[0] = (unsigned char)codepoint;
+        len = 1;
+    } else if(codepoint <= 0x7FFu) {
+        bytes[0] = (unsigned char)(0xC0u | (codepoint >> 6));
+        bytes[1] = (unsigned char)(0x80u | (codepoint & 0x3Fu));
+        len = 2;
+    } else if(codepoint <= 0xFFFFu) {
+        bytes[0] = (unsigned char)(0xE0u | (codepoint >> 12));
+        bytes[1] = (unsigned char)(0x80u | ((codepoint >> 6) & 0x3Fu));
+        bytes[2] = (unsigned char)(0x80u | (codepoint & 0x3Fu));
+        len = 3;
+    } else if(codepoint <= 0x10FFFFu) {
+        bytes[0] = (unsigned char)(0xF0u | (codepoint >> 18));
+        bytes[1] = (unsigned char)(0x80u | ((codepoint >> 12) & 0x3Fu));
+        bytes[2] = (unsigned char)(0x80u | ((codepoint >> 6) & 0x3Fu));
+        bytes[3] = (unsigned char)(0x80u | (codepoint & 0x3Fu));
+        len = 4;
+    }
+
+    if(len <= 0 || used + (size_t)len >= out_size) {
+        out[used < out_size ? used : out_size - 1] = '\0';
+        return used;
+    }
+    memcpy(out + used, bytes, (size_t)len);
+    used += (size_t)len;
+    out[used] = '\0';
+    return used;
+}
+
+void
+pass_core_master_emoji(const char *master, char *out, size_t out_size)
+{
+    uint8_t sum[32];
+    size_t used = 0;
+    int table_count = 0;
+    const int *table = pass_core_master_emoji_codepoints(&table_count);
+
+    if(out == NULL || out_size == 0)
+        return;
+    out[0] = '\0';
+    if(master == NULL)
+        master = "";
+    pass_core_sha256(master, strlen(master), sum);
+    for(int i = 0; i < PASS_MASTER_EMOJI_COUNT && table_count > 0; i++)
+        used = append_utf8(out, used, out_size,
+                           (uint32_t)table[sum[i] % table_count]);
 }
 
 /* ------------------------------------------------------------------ */
@@ -223,9 +299,9 @@ hmac_sha256(const void *key, size_t key_len,
 /* ------------------------------------------------------------------ */
 
 void
-pass_derive_key(const char *password, size_t password_len,
-                  const char *salt, size_t salt_len,
-                  uint8_t out[32])
+pass_core_derive_key(const char *password, size_t password_len,
+                     const char *salt, size_t salt_len,
+                     uint8_t out[32])
 {
     uint8_t block_input[512];
     uint8_t previous[32];
@@ -309,10 +385,10 @@ class_filtered(const char *characters, const char *exclude, char *out, int out_s
 }
 
 int
-pass_generate(const char *site, const char *login, const char *master,
-                const PassOptions *options,
-                char *out, size_t out_size,
-                char *err, size_t err_size)
+pass_core_generate(const char *site, const char *login, const char *master,
+                   const PassOptions *options,
+                   char *out, size_t out_size,
+                   char *err, size_t err_size)
 {
     static const char *class_names[4] = {"lowercase", "uppercase", "digits", "symbols"};
     static const char *class_sets[4] = {
@@ -386,8 +462,8 @@ pass_generate(const char *site, const char *login, const char *master,
     salt_len += (size_t)snprintf(salt + salt_len, sizeof(salt) - salt_len,
                                  "%llu", (unsigned long long)options->counter);
 
-    pass_derive_key(master != NULL ? master : "", master != NULL ? strlen(master) : 0,
-                      salt, salt_len, entropy);
+    pass_core_derive_key(master != NULL ? master : "", master != NULL ? strlen(master) : 0,
+                         salt, salt_len, entropy);
 
     password_length = options->length - class_count;
     for(i = 0; i < password_length; i++)
