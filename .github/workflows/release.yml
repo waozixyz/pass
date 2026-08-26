@@ -161,17 +161,24 @@ jobs:
             -Pkeystore.alias="$KEY_ALIAS" \
             -Pkeystore.password="$KEYSTORE_PASSWORD" \
             --stacktrace
+          VERSION=$(sed -n '1p' VERSION)
           mkdir -p build/release
           cp droid/app/build/outputs/apk/release/app-universal-release.apk build/release/pass-android.apk
           cp droid/app/build/outputs/apk/release/app-arm64-v8a-release.apk build/release/pass-android-arm64-v8a.apk
           cp droid/app/build/outputs/apk/release/app-armeabi-v7a-release.apk build/release/pass-android-armeabi-v7a.apk
+          cp droid/app/build/outputs/apk/release/app-universal-release.apk "build/release/pass-$VERSION.apk"
+          cp droid/app/build/outputs/apk/release/app-arm64-v8a-release.apk "build/release/pass-$VERSION-arm64-v8a.apk"
+          cp droid/app/build/outputs/apk/release/app-armeabi-v7a-release.apk "build/release/pass-$VERSION-armeabi-v7a.apk"
           test -s build/release/pass-android.apk
           test -s build/release/pass-android-arm64-v8a.apk
           test -s build/release/pass-android-armeabi-v7a.apk
+          test -s "build/release/pass-$VERSION.apk"
+          test -s "build/release/pass-$VERSION-arm64-v8a.apk"
+          test -s "build/release/pass-$VERSION-armeabi-v7a.apk"
       - uses: actions/upload-artifact@v4
         with:
           name: android
-          path: build/release/pass-android*.apk
+          path: build/release/*.apk
           if-no-files-found: error
 
   web:
