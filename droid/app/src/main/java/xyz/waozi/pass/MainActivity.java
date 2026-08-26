@@ -1,34 +1,18 @@
 package xyz.waozi.pass;
 
 import android.app.NativeActivity;
-import android.app.KeyguardManager;
-import android.content.SharedPreferences;
 import android.content.res.Configuration;
 import android.graphics.Insets;
 import android.graphics.Rect;
-import android.hardware.biometrics.BiometricPrompt;
-import android.hardware.fingerprint.FingerprintManager;
 import android.os.Build;
 import android.os.Bundle;
-import android.os.CancellationSignal;
-import android.security.keystore.UserNotAuthenticatedException;
-import android.security.keystore.KeyGenParameterSpec;
-import android.security.keystore.KeyProperties;
 import android.view.DisplayCutout;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewTreeObserver;
 import android.view.WindowInsets;
-import android.content.Context;
 
-import java.nio.charset.StandardCharsets;
-import java.security.KeyStore;
-import java.util.concurrent.Executor;
-
-import javax.crypto.Cipher;
-import javax.crypto.KeyGenerator;
-import javax.crypto.SecretKey;
-import javax.crypto.spec.GCMParameterSpec;
+import com.kryonlabs.kryon.SecureStore;
 
 /**
  * NativeActivity glue for the kryon UI: routes soft-keyboard input and
@@ -36,17 +20,6 @@ import javax.crypto.spec.GCMParameterSpec;
  */
 public class MainActivity extends NativeActivity {
     private static final String SECURE_PREFS = "pass_secure";
-    private static final String KEY_ALIAS_LEGACY = "pass_master_key";
-    private static final String KEY_ALIAS_PLAIN = "pass_master_key_plain";
-    private static final String KEY_ALIAS_AUTH = "pass_master_key_auth";
-    private static final String PREF_CIPHERTEXT = "master_ciphertext";
-    private static final String PREF_IV = "master_iv";
-    private static final String PREF_BIOMETRIC = "master_biometric";
-    private static final String PREF_KEY_ALIAS = "master_key_alias";
-    private static final int SECURE_IDLE = 0;
-    private static final int SECURE_PENDING = 1;
-    private static final int SECURE_OK = 2;
-    private static final int SECURE_ERROR = 3;
 
     static {
         // Associate libmain with this class's loader so ART can resolve the
@@ -55,8 +28,9 @@ public class MainActivity extends NativeActivity {
     }
 
     private final Object secureLock = new Object();
-    private int secureStatus = SECURE_IDLE;
+    private int secureStatus = SecureStore.STATUS_IDLE;
     private String secureResult = "";
+    private SecureStore secureStore;
     private TextInputBridge textInputBridge;
 
     private native void nativeSetInsets(int left, int top, int right, int bottom,
@@ -72,6 +46,7 @@ public class MainActivity extends NativeActivity {
         applySystemBars();
         setupInsetsListener();
         setupTextInputBridge();
+        secureStore = new SecureStore(this, SECURE_PREFS, "pass_master_key");
     }
 
     public int[] systemThemeColors() {
@@ -130,36 +105,19 @@ public class MainActivity extends NativeActivity {
     }
 
     public boolean hasStoredMasterPassword() {
-        SharedPreferences prefs = getSharedPreferences(SECURE_PREFS, MODE_PRIVATE);
-        return prefs.contains(PREF_CIPHERTEXT) && prefs.contains(PREF_IV);
+        return secureStore != null && secureStore.hasStoredSecret();
     }
 
     public boolean isStoredMasterBiometric() {
-        return getSharedPreferences(SECURE_PREFS, MODE_PRIVATE).getBoolean(PREF_BIOMETRIC, false);
+        return hasStoredMasterPassword();
     }
 
-    @SuppressWarnings("deprecation")
     public boolean isBiometricAvailable() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return false;
-        try {
-            FingerprintManager fm = (FingerprintManager)getSystemService(Context.FINGERPRINT_SERVICE);
-            if (fm != null && fm.isHardwareDetected() && fm.hasEnrolledFingerprints()) return true;
-        } catch (SecurityException ignored) {
-        }
-        return false;
+        return secureStore != null && secureStore.isBiometricAvailable();
     }
 
-    @SuppressWarnings("deprecation")
     public boolean isBiometricSetupRequired() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return false;
-        try {
-            FingerprintManager fm = (FingerprintManager)getSystemService(Context.FINGERPRINT_SERVICE);
-            if (fm == null || !fm.isHardwareDetected()) return false;
-            KeyguardManager km = (KeyguardManager)getSystemService(Context.KEYGUARD_SERVICE);
-            return !fm.hasEnrolledFingerprints() || km == null || !km.isDeviceSecure();
-        } catch (SecurityException ignored) {
-            return false;
-        }
+        return secureStore != null && secureStore.isBiometricSetupRequired();
     }
 
     private String biometricUnavailableMessage() {
@@ -170,16 +128,20 @@ public class MainActivity extends NativeActivity {
     }
 
     public int secureMasterStatus() {
+        if (secureStore != null)
+            return secureStore.status();
         synchronized (secureLock) {
             return secureStatus;
         }
     }
 
     public String takeSecureMasterResult() {
+        if (secureStore != null)
+            return secureStore.takeResult();
         synchronized (secureLock) {
             String value = secureResult == null ? "" : secureResult;
             secureResult = "";
-            secureStatus = SECURE_IDLE;
+            secureStatus = SecureStore.STATUS_IDLE;
             return value;
         }
     }
@@ -192,215 +154,44 @@ public class MainActivity extends NativeActivity {
                     setSecureError("Enter a master password first");
                     return;
                 }
-                if (requireBiometric && !isBiometricAvailable()) {
+                if (!isBiometricAvailable()) {
                     setSecureError(biometricUnavailableMessage());
                     return;
                 }
-                if (requireBiometric) {
-                    authenticateThenSave(master);
-                } else {
-                    encryptAndStoreMaster(master, false);
-                }
+                if (secureStore != null)
+                    secureStore.saveSecret(master, "master password");
             }
         });
     }
 
     public void unlockMasterPassword() {
-        if (!hasStoredMasterPassword()) {
+        if (secureStore == null || !hasStoredMasterPassword()) {
             setSecureError("No saved master password");
             return;
         }
-        if (isStoredMasterBiometric()) {
-            authenticateThenDecrypt();
-            return;
-        }
-        decryptStoredMaster();
+        secureStore.unlockSecret("master password");
     }
 
     public void clearMasterPassword() {
-        getSharedPreferences(SECURE_PREFS, MODE_PRIVATE).edit().clear().apply();
-        setSecureOk("Saved master password removed");
-    }
-
-    private void authenticateThenDecrypt() {
-        promptForBiometric("Unlock master password",
-                "Use your fingerprint",
-                "pass will decrypt the saved master password after unlock",
-                new Runnable() {
-            @Override
-            public void run() {
-                decryptStoredMaster();
-            }
-        });
-    }
-
-    private void authenticateThenSave(final String master) {
-        promptForBiometric("Save master password",
-                "Use your fingerprint",
-                "pass will require fingerprint unlock for the saved master password",
-                new Runnable() {
-            @Override
-            public void run() {
-                encryptAndStoreMaster(master, true);
-            }
-        });
-    }
-
-    private void promptForBiometric(String title, String subtitle, String description,
-                                    final Runnable onSuccess) {
-        if (!isBiometricAvailable()) {
-            setSecureError(biometricUnavailableMessage());
-            return;
+        if (secureStore != null) {
+            secureStore.clearSecret();
+        } else {
+            setSecureOk("Saved master password removed");
         }
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) {
-            setSecureError("Biometric prompt requires Android 9 or newer");
-            return;
-        }
-        synchronized (secureLock) {
-            secureStatus = SECURE_PENDING;
-            secureResult = "";
-        }
-        runOnUiThread(new Runnable() {
-            @Override
-            public void run() {
-                Executor executor = new Executor() {
-                    @Override
-                    public void execute(Runnable command) {
-                        runOnUiThread(command);
-                    }
-                };
-                BiometricPrompt prompt = new BiometricPrompt.Builder(MainActivity.this)
-                    .setTitle(title)
-                    .setSubtitle(subtitle)
-                    .setDescription(description)
-                    .setNegativeButton("Cancel", executor, (dialog, which) -> setSecureError("Canceled"))
-                    .build();
-                prompt.authenticate(new CancellationSignal(), executor,
-                    new BiometricPrompt.AuthenticationCallback() {
-                        @Override
-                        public void onAuthenticationSucceeded(BiometricPrompt.AuthenticationResult result) {
-                            onSuccess.run();
-                        }
-
-                        @Override
-                        public void onAuthenticationError(int errorCode, CharSequence errString) {
-                            setSecureError(errString == null ? "Unlock failed" : errString.toString());
-                        }
-
-                        @Override
-                        public void onAuthenticationFailed() {
-                            setSecureError("Biometric unlock failed");
-                        }
-                    });
-            }
-        });
-    }
-
-    private void encryptAndStoreMaster(String master, boolean requireBiometric) {
-        try {
-            Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
-            cipher.init(Cipher.ENCRYPT_MODE, getOrCreateMasterKey(requireBiometric));
-            byte[] encrypted = cipher.doFinal(master.getBytes(StandardCharsets.UTF_8));
-            byte[] iv = cipher.getIV();
-            if (iv == null || iv.length == 0) {
-                setSecureError("Save failed: missing encryption IV");
-                return;
-            }
-
-            SharedPreferences.Editor editor = getSharedPreferences(SECURE_PREFS, MODE_PRIVATE).edit();
-            editor.putString(PREF_IV, b64(iv));
-            editor.putString(PREF_CIPHERTEXT, b64(encrypted));
-            editor.putBoolean(PREF_BIOMETRIC, requireBiometric);
-            editor.putString(PREF_KEY_ALIAS, requireBiometric ? KEY_ALIAS_AUTH : KEY_ALIAS_PLAIN);
-            editor.apply();
-            setSecureOk("Master password saved");
-        } catch (UserNotAuthenticatedException e) {
-            setSecureError("Unlock with fingerprint first");
-        } catch (Exception e) {
-            setSecureError("Save failed: " + e.getMessage());
-        }
-    }
-
-    private void decryptStoredMaster() {
-        try {
-            SharedPreferences prefs = getSharedPreferences(SECURE_PREFS, MODE_PRIVATE);
-            String ivText = prefs.getString(PREF_IV, "");
-            String encryptedText = prefs.getString(PREF_CIPHERTEXT, "");
-            if (ivText.length() == 0 || encryptedText.length() == 0) {
-                setSecureError("No saved master password");
-                return;
-            }
-            Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
-            cipher.init(Cipher.DECRYPT_MODE, getStoredMasterKey(), new GCMParameterSpec(128, unb64(ivText)));
-            byte[] decrypted = cipher.doFinal(unb64(encryptedText));
-            setSecureOk(new String(decrypted, StandardCharsets.UTF_8));
-        } catch (UserNotAuthenticatedException e) {
-            setSecureError("Unlock with fingerprint first");
-        } catch (Exception e) {
-            setSecureError("Unlock failed: " + e.getMessage());
-        }
-    }
-
-    private SecretKey getStoredMasterKey() throws Exception {
-        SharedPreferences prefs = getSharedPreferences(SECURE_PREFS, MODE_PRIVATE);
-        String alias = prefs.getString(PREF_KEY_ALIAS, KEY_ALIAS_LEGACY);
-        boolean requireAuth = KEY_ALIAS_AUTH.equals(alias);
-        return getOrCreateMasterKey(alias, requireAuth);
-    }
-
-    private SecretKey getOrCreateMasterKey(boolean requireAuth) throws Exception {
-        return getOrCreateMasterKey(requireAuth ? KEY_ALIAS_AUTH : KEY_ALIAS_PLAIN, requireAuth);
-    }
-
-    private SecretKey getOrCreateMasterKey(String alias, boolean requireAuth) throws Exception {
-        KeyStore keyStore = KeyStore.getInstance("AndroidKeyStore");
-        keyStore.load(null);
-        if (keyStore.containsAlias(alias)) {
-            return (SecretKey)keyStore.getKey(alias, null);
-        }
-        KeyGenerator generator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore");
-        KeyGenParameterSpec.Builder spec = new KeyGenParameterSpec.Builder(
-                alias, KeyProperties.PURPOSE_ENCRYPT | KeyProperties.PURPOSE_DECRYPT)
-            .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
-            .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
-            .setRandomizedEncryptionRequired(true);
-        if (requireAuth) {
-            spec.setUserAuthenticationRequired(true);
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                spec.setUserAuthenticationParameters(30,
-                        KeyProperties.AUTH_BIOMETRIC_STRONG | KeyProperties.AUTH_DEVICE_CREDENTIAL);
-            } else {
-                spec.setUserAuthenticationValidityDurationSeconds(30);
-            }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                spec.setInvalidatedByBiometricEnrollment(true);
-            }
-        }
-        KeyGenParameterSpec builtSpec = spec.build();
-        generator.init(builtSpec);
-        return generator.generateKey();
     }
 
     private void setSecureOk(String value) {
         synchronized (secureLock) {
-            secureStatus = SECURE_OK;
+            secureStatus = SecureStore.STATUS_OK;
             secureResult = value == null ? "" : value;
         }
     }
 
     private void setSecureError(String value) {
         synchronized (secureLock) {
-            secureStatus = SECURE_ERROR;
+            secureStatus = SecureStore.STATUS_ERROR;
             secureResult = value == null ? "Secure storage failed" : value;
         }
-    }
-
-    private static String b64(byte[] data) {
-        return android.util.Base64.encodeToString(data, android.util.Base64.NO_WRAP);
-    }
-
-    private static byte[] unb64(String text) {
-        return android.util.Base64.decode(text, android.util.Base64.NO_WRAP);
     }
 
     private void setupTextInputBridge() {

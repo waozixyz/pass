@@ -99,6 +99,7 @@ add_library(main SHARED
     "${PASS_NATIVE_DIR}/pass_runtime.c"
     ${PASS_KRY_GENERATED_SOURCES}
     "${PASS_EMBEDDED_ASSETS_C}"
+    "${KRYON_DIR}/src/backend/kry_sw_png.c"
     ${KRYON_SOURCES}
     "${NATIVE_APP_GLUE_DIR}/android_native_app_glue.c"
 )

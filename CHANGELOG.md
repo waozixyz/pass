@@ -5,6 +5,8 @@
 - Generate passwords that match LessPass clients for the same site, login,
   master password, counter, character classes, and length settings.
 - Limit password length to the LessPass-compatible 5 to 35 character range.
+- Require Android fingerprint unlock for saved master passwords and store them
+  with an authenticated Android Keystore key.
 
 ## [0.2.7] - 2026-08-24
 
