@@ -6,6 +6,8 @@
 
 #define PASS_DERIVATION_ROUNDS 100000
 #define PASS_MASTER_EMOJI_COUNT 4
+#define PASS_MIN_LENGTH 5
+#define PASS_MAX_LENGTH 35
 
 typedef struct {
     int length;

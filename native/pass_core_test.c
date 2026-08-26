@@ -167,7 +167,7 @@ check_shape(void)
     int i, j, has_lower, has_upper, has_digits, has_symbols;
 
     memset(&options, 0, sizeof(options));
-    options.length = 40;
+    options.length = 35;
     options.counter = 3;
     options.lowercase = 1;
     options.uppercase = 1;
@@ -180,8 +180,8 @@ check_shape(void)
         failures++;
         return;
     }
-    if((int)strlen(out) != 40) {
-        printf("FAIL shape: length %zu, want 40\n", strlen(out));
+    if((int)strlen(out) != 35) {
+        printf("FAIL shape: length %zu, want 35\n", strlen(out));
         failures++;
         return;
     }
@@ -211,7 +211,7 @@ check_shape(void)
         failures++;
         return;
     }
-    printf("ok   shape: 40 chars, all classes covered, exclusions honored\n");
+    printf("ok   shape: 35 chars, all classes covered, exclusions honored\n");
 }
 
 int
@@ -223,6 +223,8 @@ main(void)
         "0394a2ede332c9a13eb82e9b24631604c31df978b4e2f0fbd2c549944f9d79a5");
     check_derive(2, "", "examplealice1",
         "caa46554f5a676b76c15b368c655b0b24eaaad8595ef919999785c68e60fd5f5");
+    check_derive(3, "test", "sitelogina",
+        "91b368e6337bd9c7007041922ade15c2907bd53c450f73e0ba1a001e10bff7eb");
     check_sha256();
     check_master_emoji();
 
@@ -236,7 +238,7 @@ main(void)
     defaults.exclude = "";
 
     check_generate(1, "example.com", "alice", "correct horse battery staple",
-                   defaults, "&vLf44D'/cSkP-_8", 0);
+                   defaults, "&Lf4'/-cSk4DPv_8", 0);
 
     {
         PassOptions o = defaults;
@@ -244,7 +246,7 @@ main(void)
         o.length = 20;
         o.counter = 2;
         check_generate(2, "service.test", "person@example.net", "master",
-                       o, "j:x_Lo5X_jL0w%ez`1be", 0);
+                       o, "j:x_Lo5b1XL_j0we%z`e", 0);
     }
 
     {
@@ -257,7 +259,7 @@ main(void)
         o.digits = 1;
         check_generate(3, "\xce\xb4\xce\xbf\xce\xba\xce\xb9\xce\xbc\xce\xae.example",
                        "\xe3\x83\xa6\xe3\x83\xbc\xe3\x82\xb6\xe3\x83\xbc",
-                       "p\xc3\xa4ssword", o, "ioh5o2mhyghv", 0);
+                       "p\xc3\xa4ssword", o, "oih5omhygh2v", 0);
     }
 
     {
@@ -266,18 +268,36 @@ main(void)
         o.length = 24;
         o.exclude = "0Ool1I!|";
         check_generate(4, "example.com", "alice", "correct horse battery staple",
-                       o, "7,a.Cp}YnF'ee7HqbX#PQhgH", 0);
+                       o, "7,.Cp}YnF'eeHHaqbX7#PQhg", 0);
     }
 
     {
         PassOptions o;
 
         memset(&o, 0, sizeof(o));
-        o.length = 4;
+        o.length = 5;
         o.counter = 0;
         o.uppercase = 1;
         o.digits = 1;
-        check_generate(5, "x", "y", "", o, "9O7C", 0);
+        check_generate(5, "x", "y", "", o, "C9O9I", 0);
+    }
+
+    {
+        PassOptions o = defaults;
+
+        check_generate(6, "lesspass.com", "contact@lesspass.com", "password",
+                       o, "\\g-A1-.OHEwrXjT#", 0);
+    }
+
+    {
+        PassOptions o = defaults;
+
+        o.counter = 10;
+        check_generate(7, "site", "login", "test",
+                       o, "XFt0F*,r619:+}[.", 0);
+        o.counter = 16;
+        check_generate(8, "site", "login", "test",
+                       o, "l:`nzj>S7+0#uL_d", 0);
     }
 
     {
@@ -286,7 +306,7 @@ main(void)
         memset(&o, 0, sizeof(o));
         o.length = 0;
         o.lowercase = 1;
-        check_generate(6, "site", "login", "master", o, "", 1);
+        check_generate(9, "site", "login", "master", o, "", 1);
     }
 
     {
@@ -294,7 +314,7 @@ main(void)
 
         memset(&o, 0, sizeof(o));
         o.length = 8;
-        check_generate(7, "site", "login", "master", o, "", 1);
+        check_generate(10, "site", "login", "master", o, "", 1);
     }
 
     {
@@ -305,7 +325,7 @@ main(void)
         o.lowercase = 1;
         o.uppercase = 1;
         o.digits = 1;
-        check_generate(8, "site", "login", "master", o, "", 1);
+        check_generate(11, "site", "login", "master", o, "", 1);
     }
 
     {
@@ -315,7 +335,14 @@ main(void)
         o.length = 8;
         o.digits = 1;
         o.exclude = "0123456789";
-        check_generate(9, "site", "login", "master", o, "", 1);
+        check_generate(12, "site", "login", "master", o, "", 1);
+    }
+
+    {
+        PassOptions o = defaults;
+
+        o.length = 4;
+        check_generate(13, "site", "login", "master", o, "", 1);
     }
 
     check_shape();

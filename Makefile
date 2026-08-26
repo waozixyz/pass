@@ -1,4 +1,4 @@
-.PHONY: all cli kry-c gui native run test native-test cli-test check-submodule-urls kry-smoke web web-canvas site web-smoke android-debug android-smoke android-input-test e2e install install-cli uninstall-cli install-gui uninstall-gui package-deb package-appimage
+.PHONY: all cli kry-c gui native run test native-test cli-test lesspass-compat-test check-submodule-urls kry-smoke web web-canvas site web-smoke android-debug android-smoke android-input-test e2e install install-cli uninstall-cli install-gui uninstall-gui package-deb package-appimage
 
 BIN_DIR ?= $(HOME)/bin
 DATA_DIR ?= $(if $(XDG_DATA_HOME),$(XDG_DATA_HOME),$(HOME)/.local/share)
@@ -95,7 +95,7 @@ uninstall-gui:
 	rm -f $(BIN_DIR)/pass-gui $(DATA_DIR)/applications/xyz.waozi.pass.desktop $(DATA_DIR)/icons/hicolor/512x512/apps/pass.png
 
 test:
-	$(MAKE) native-test cli-test kry-smoke
+	$(MAKE) native-test cli-test lesspass-compat-test kry-smoke
 
 # Checks the C generator used by the CLI and every Kry app target.
 native-test:
@@ -104,8 +104,11 @@ native-test:
 	./build/pass_core_test
 
 cli-test: cli
-	test "$$(./pass example.com alice 'correct horse battery staple')" = "&vLf44D'/cSkP-_8"
-	test "$$(./pass --length 20 --counter 2 service.test person@example.net master)" = "j:x_Lo5X_jL0w%ez\`1be"
+	test "$$(./pass lesspass.com contact@lesspass.com password)" = '\g-A1-.OHEwrXjT#'
+	test "$$(./pass --length 20 --counter 2 service.test person@example.net master)" = 'j:x_Lo5b1XL_j0we%z`e'
+
+lesspass-compat-test: cli
+	python3 scripts/lesspass_compat_test.py --cli ./pass
 
 check-submodule-urls:
 	bash scripts/check_submodule_urls.sh

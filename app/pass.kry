@@ -234,7 +234,7 @@ pass_draw_generate :: (pad: int, y: int, content_w: int) -> int #private {
     y += ScaleUIPx(12)
 
     Text("Length", pad, y + ScaleUIPx(10), Text16, GetThemeText())
-    Spinbox((SpinboxProps){.bounds = {pad + content_w - ScaleUIPx(156), y, ScaleUIPx(156), ScaleUIPx(40)}, .id = 20, .min = 4, .max = 128, .step = 1, .value = &length, .disabled = 0, .wrap = 0})
+    Spinbox((SpinboxProps){.bounds = {pad + content_w - ScaleUIPx(156), y, ScaleUIPx(156), ScaleUIPx(40)}, .id = 20, .min = 5, .max = 35, .step = 1, .value = &length, .disabled = 0, .wrap = 0})
     y += ScaleUIPx(54)
 
     Text("Counter", pad, y + ScaleUIPx(10), Text16, GetThemeText())

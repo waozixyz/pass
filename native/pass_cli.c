@@ -30,7 +30,7 @@ usage(FILE *out)
         "Derive a site-specific password.\n"
         "\n"
         "Options:\n"
-        "  -L, --length N          password length (default 16)\n"
+        "  -L, --length N          password length (default 16, min 5, max 35)\n"
         "  -C, --counter N         generation counter (default 1)\n"
         "  -l, --lowercase         include lowercase letters\n"
         "  -u, --uppercase         include uppercase letters\n"

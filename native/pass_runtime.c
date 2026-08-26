@@ -86,6 +86,16 @@ copy_text(char *dst, size_t dst_size, const char *src)
     dst[len] = '\0';
 }
 
+static int
+clamp_length(int length)
+{
+    if(length < PASS_MIN_LENGTH)
+        return PASS_MIN_LENGTH;
+    if(length > PASS_MAX_LENGTH)
+        return PASS_MAX_LENGTH;
+    return length;
+}
+
 static void
 runtime_defaults(void)
 {
@@ -145,7 +155,7 @@ load_settings(void)
         else if(strcmp(line, "show_fingerprint") == 0)
             runtime.settings.show_fingerprint = atoi(value) != 0;
         else if(strcmp(line, "length") == 0)
-            runtime.settings.length = atoi(value);
+            runtime.settings.length = clamp_length(atoi(value));
         else if(strcmp(line, "counter") == 0)
             runtime.settings.counter = atoi(value);
         else if(strcmp(line, "lower") == 0)
@@ -240,7 +250,7 @@ load_profiles(void)
            !read_field(&cursor, p->login, sizeof(p->login)) ||
            !read_field(&cursor, scratch, sizeof(scratch)))
             continue;
-        p->length = atoi(scratch);
+        p->length = clamp_length(atoi(scratch));
         if(!read_field(&cursor, scratch, sizeof(scratch)))
             continue;
         p->counter = atoi(scratch);
@@ -532,7 +542,7 @@ pass_save_settings(int auto_copy, int clear_seconds, int show_fingerprint,
     runtime.settings.auto_copy = auto_copy != 0;
     runtime.settings.clear_seconds = clear_seconds < 0 ? 0 : clear_seconds;
     runtime.settings.show_fingerprint = show_fingerprint != 0;
-    runtime.settings.length = length < 4 ? 4 : length;
+    runtime.settings.length = clamp_length(length);
     runtime.settings.counter = counter < 1 ? 1 : counter;
     runtime.settings.lower = lower != 0;
     runtime.settings.upper = upper != 0;

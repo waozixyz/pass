@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.2.8] - 2026-08-26
+
+- Generate passwords that match LessPass clients for the same site, login,
+  master password, counter, character classes, and length settings.
+- Limit password length to the LessPass-compatible 5 to 35 character range.
+
 ## [0.2.7] - 2026-08-24
 
 - Fix Android source builds in stricter environments such as F-Droid builders

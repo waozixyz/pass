@@ -74,7 +74,7 @@ settings_draw :: (
     y += ScaleUIPx(34)
 
     Text("Length", x, y + ScaleUIPx(10), Text16, GetThemeText())
-    Spinbox((SpinboxProps){.bounds = {x + width - ScaleUIPx(156), y, ScaleUIPx(156), ScaleUIPx(40)}, .id = 504, .min = 4, .max = 128, .step = 1, .value = length, .disabled = 0, .wrap = 0})
+    Spinbox((SpinboxProps){.bounds = {x + width - ScaleUIPx(156), y, ScaleUIPx(156), ScaleUIPx(40)}, .id = 504, .min = 5, .max = 35, .step = 1, .value = length, .disabled = 0, .wrap = 0})
     y += ScaleUIPx(54)
 
     Text("Counter", x, y + ScaleUIPx(10), Text16, GetThemeText())

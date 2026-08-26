@@ -25,7 +25,8 @@ pass [OPTIONS] SITE LOGIN [MASTER_PASSWORD]
 ```
 
 The default password has 16 characters and includes lowercase letters,
-uppercase letters, digits, and symbols. The default counter is 1.
+uppercase letters, digits, and symbols. Length must be between 5 and 35,
+matching LessPass clients. The default counter is 1.
 
 Passing a master password as an argument can expose it to process inspection
 and shell history. Omitting it is safer: `pass` first checks

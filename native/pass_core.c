@@ -412,8 +412,12 @@ pass_core_generate(const char *site, const char *login, const char *master,
     char message[192];
     int i;
 
-    if(options->length < 1)
-        return set_error(err, err_size, "password length must be positive");
+    if(options->length < PASS_MIN_LENGTH || options->length > PASS_MAX_LENGTH) {
+        snprintf(message, sizeof(message),
+                 "password length must be between %d and %d",
+                 PASS_MIN_LENGTH, PASS_MAX_LENGTH);
+        return set_error(err, err_size, message);
+    }
 
     for(i = 0; i < 4; i++) {
         if(!class_enabled[i])
@@ -439,6 +443,9 @@ pass_core_generate(const char *site, const char *login, const char *master,
                  options->length, class_count);
         return set_error(err, err_size, message);
     }
+    if(options->length == class_count)
+        return set_error(err, err_size,
+                         "password length must leave room for generated characters");
     if((size_t)options->length + 1 > out_size || options->length + 1 > (int)sizeof(password))
         return set_error(err, err_size, "password length exceeds the output buffer");
 
@@ -460,7 +467,7 @@ pass_core_generate(const char *site, const char *login, const char *master,
         salt_len += login_len;
     }
     salt_len += (size_t)snprintf(salt + salt_len, sizeof(salt) - salt_len,
-                                 "%llu", (unsigned long long)options->counter);
+                                 "%llx", (unsigned long long)options->counter);
 
     pass_core_derive_key(master != NULL ? master : "", master != NULL ? strlen(master) : 0,
                          salt, salt_len, entropy);
@@ -473,7 +480,7 @@ pass_core_generate(const char *site, const char *login, const char *master,
         required[i] = classes[i][entropy_take_remainder(entropy, class_lengths[i])];
 
     for(i = 0; i < class_count; i++) {
-        int position = entropy_take_remainder(entropy, password_length + 1);
+        int position = entropy_take_remainder(entropy, password_length);
 
         memmove(password + position + 1, password + position,
                 (size_t)(password_length - position));
