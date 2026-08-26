@@ -110,9 +110,9 @@ runtime_defaults(void)
     runtime.settings.digits = 1;
     runtime.settings.symbols = 1;
     runtime.settings.exclude[0] = '\0';
-    runtime.settings.theme_source = THEME_SOURCE_SYSTEM;
+    runtime.settings.theme_source = THEME_SOURCE_APP;
     runtime.settings.theme_mode = THEME_MODE_SYSTEM;
-    runtime.settings.theme_id = THEME_MINT;
+    runtime.settings.theme_id = THEME_SWEET;
     runtime.settings.theme_style = THEME_STYLE_MATERIAL;
     copy_text(runtime.status, sizeof(runtime.status), "Ready");
     copy_text(runtime.fingerprint_status, sizeof(runtime.fingerprint_status), "No saved master password");

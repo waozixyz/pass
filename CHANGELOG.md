@@ -7,6 +7,8 @@
 - Limit password length to the LessPass-compatible 5 to 35 character range.
 - Require Android fingerprint unlock for saved master passwords and store them
   with an authenticated Android Keystore key.
+- Use the Sweet Material theme by default and show the generated password in a
+  dedicated output field.
 
 ## [0.2.7] - 2026-08-24
 

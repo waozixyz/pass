@@ -49,9 +49,9 @@ state {
     auto_copy: int = 0
     clear_seconds: int = 20
     show_fingerprint: int = 1
-    theme_source: int = THEME_SOURCE_SYSTEM
+    theme_source: int = THEME_SOURCE_APP
     theme_mode: int = THEME_MODE_SYSTEM
-    theme_id: int = THEME_MINT
+    theme_id: int = THEME_SWEET
     theme_style: int = THEME_STYLE_MATERIAL
     theme_menu_state: UIThemeSettingsState
 
@@ -151,6 +151,22 @@ pass_draw_master_emoji :: (x: int, y: int, master_text: [1024] char, enabled: in
     Text(pass_master_emoji(master_text), x, y, Text20, GetThemeIcon())
     PopUIFont(font_token)
     return ScaleUIPx(32)
+}
+
+pass_draw_generated_output :: (x: int, y: int, width: int) #private {
+    bounds := (Rectangle){x, y, width, ScaleUIPx(54)}
+    inner := (Rectangle){x + ScaleUIPx(14), y + ScaleUIPx(9), width - ScaleUIPx(28), ScaleUIPx(36)}
+    output: char* = pass_generated()
+    border: Color = Fade(GetThemeIcon(), 0.30f)
+    fill: Color = GetThemeSurface()
+
+    DrawRectangleRounded(bounds, 0.12f, 10, fill)
+    DrawRectangleRoundedLinesEx(bounds, 0.12f, 10, ScaleUIPx(1), border)
+    if output[0] == 0 {
+        TextInRect("Password will appear here", inner, Text16, Fade(GetThemeText(), 0.54f))
+    } else {
+        TextInRect(output, inner, Text16, GetThemeText())
+    }
 }
 
 pass_request_focused_input_visible :: (focus_id: int, bounds: Rectangle) #private {
@@ -262,12 +278,12 @@ pass_draw_generate :: (pad: int, y: int, content_w: int) -> int #private {
     y += ScaleUIPx(60)
 
     Text("Generated password", pad, y, Text14, GetThemeText())
-    TextInRect(pass_generated(), (Rectangle){pad, y + ScaleUIPx(22), content_w, ScaleUIPx(48)}, Text16, GetThemeText())
+    pass_draw_generated_output(pad, y + ScaleUIPx(22), content_w)
     if pass_scroll_to_generated == 1 {
-        pass_request_rect_visible((Rectangle){pad, y, content_w, ScaleUIPx(76)})
+        pass_request_rect_visible((Rectangle){pad, y, content_w, ScaleUIPx(82)})
         pass_scroll_to_generated = 0
     }
-    y += ScaleUIPx(82)
+    y += ScaleUIPx(88)
 
     if Button((ButtonProps){.bounds = {pad, y, content_w, ScaleUIPx(40)}, .label = "Copy", .style = ButtonStyleSecondary, .font = Text16, .id = 41}) {
         pass_copy()
