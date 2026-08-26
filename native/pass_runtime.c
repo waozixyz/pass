@@ -180,6 +180,26 @@ load_settings(void)
     fclose(f);
 }
 
+static void
+migrate_default_theme_settings(void)
+{
+    int legacy_system_default =
+        runtime.settings.theme_source == THEME_SOURCE_SYSTEM &&
+        runtime.settings.theme_mode == THEME_MODE_SYSTEM &&
+        (runtime.settings.theme_id == THEME_MINT ||
+         runtime.settings.theme_id == THEME_SWEET) &&
+        (runtime.settings.theme_style == THEME_STYLE_SYSTEM ||
+         runtime.settings.theme_style == THEME_STYLE_MATERIAL);
+
+    if(!legacy_system_default)
+        return;
+
+    runtime.settings.theme_source = THEME_SOURCE_APP;
+    runtime.settings.theme_mode = THEME_MODE_SYSTEM;
+    runtime.settings.theme_id = THEME_SWEET;
+    runtime.settings.theme_style = THEME_STYLE_MATERIAL;
+}
+
 static int
 write_settings(void)
 {
@@ -312,6 +332,7 @@ pass_runtime_init(void)
 {
     runtime_defaults();
     load_settings();
+    migrate_default_theme_settings();
     load_profiles();
 }
 

@@ -2,13 +2,16 @@
 
 ## [0.2.8] - 2026-08-26
 
-- Generate passwords that match LessPass clients for the same site, login,
-  master password, counter, character classes, and length settings.
-- Limit password length to the LessPass-compatible 5 to 35 character range.
+- Match LessPass clients for the same site, login, master password, counter,
+  character classes, and length settings.
+- Limit password length to LessPass's 5 to 35 character range.
 - Require Android fingerprint unlock for saved master passwords and store them
   with an authenticated Android Keystore key.
-- Use the Sweet Material theme by default and show the generated password in a
-  dedicated output field.
+- Use the Sweet Material palette by default, with Sweet-Dark matched colors in
+  dark mode, and show generated passwords in a dedicated output field.
+- Keep settings controls fully scrollable above the bottom navigation and use
+  the available form width while scrolling.
+- Keep theme dropdowns from opening the Android soft keyboard.
 
 ## [0.2.7] - 2026-08-24
 

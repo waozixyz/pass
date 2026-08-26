@@ -1,4 +1,4 @@
-- Generate passwords that match LessPass clients for the same site, login, master password, counter, character classes, and length settings.
-- Limit password length to the LessPass-compatible 5 to 35 character range.
+- Match LessPass clients for the same site, login, master password, counter, character classes, and length settings.
+- Limit password length to LessPass's 5 to 35 character range.
 - Require Android fingerprint unlock for saved master passwords and store them with an authenticated Android Keystore key.
-- Use the Sweet Material theme by default and show the generated password in a dedicated output field.
+- Use the Sweet Material palette by default, with Sweet-Dark matched colors in dark mode, and show generated passwords in a dedicated output field.

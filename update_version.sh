@@ -73,4 +73,16 @@ if [ -z "$changelog" ]; then
 	echo "No changelog bullets found for $release_version in CHANGELOG.md" >&2
 	exit 1
 fi
-printf '%s\n' "$changelog" | head -c 500 > "$changelog_dir/$release_code.txt"
+printf '%s\n' "$changelog" | awk '
+	BEGIN { limit = 500; used = 0 }
+	{
+		line = $0 "\n"
+		if (used + length(line) > limit)
+			exit
+		printf "%s", line
+		used += length(line)
+	}
+' > "$changelog_dir/$release_code.txt"
+if [ ! -s "$changelog_dir/$release_code.txt" ]; then
+	printf '%s\n' "$changelog" | head -c 500 > "$changelog_dir/$release_code.txt"
+fi

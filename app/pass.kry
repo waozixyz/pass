@@ -329,6 +329,7 @@ pass_frame :: () #ui {
 
     nav_h: int = ScaleUIPx(66)
     nav_y: int = screen_h - bottom - nav_h
+    scrollbar_x: int = screen_w - ScaleUIPx(pass_safe_right()) - ScaleUIPx(8)
     y: int = top
     view_h: int = nav_y - y
     if view_h < ScaleUIPx(180) {
@@ -340,7 +341,9 @@ pass_frame :: () #ui {
         area := (UIScrollArea){
             .bounds = {left, y, content_w, view_h},
             .content_height = pass_generate_content_height(),
-            .scroll_offset = &generate_scroll
+            .scroll_offset = &generate_scroll,
+            .content_width = content_w,
+            .scrollbar_x = scrollbar_x
         }
         scroll := BeginUIScrollContainer(area)
         pass_draw_generate(scroll.content_x, scroll.content_y, scroll.content_w)
@@ -350,7 +353,9 @@ pass_frame :: () #ui {
         area := (UIScrollArea){
             .bounds = {left, y, content_w, view_h},
             .content_height = profiles_content_height(),
-            .scroll_offset = &profiles_scroll
+            .scroll_offset = &profiles_scroll,
+            .content_width = content_w,
+            .scrollbar_x = scrollbar_x
         }
         scroll := BeginUIScrollContainer(area)
         pass_draw_profiles(scroll.content_x, scroll.content_y, scroll.content_w)
@@ -359,8 +364,10 @@ pass_frame :: () #ui {
     } else {
         area := (UIScrollArea){
             .bounds = {left, y, content_w, view_h},
-            .content_height = settings_content_height(),
-            .scroll_offset = &settings_scroll
+            .content_height = settings_content_height(master),
+            .scroll_offset = &settings_scroll,
+            .content_width = content_w,
+            .scrollbar_x = scrollbar_x
         }
         scroll := BeginUIScrollContainer(area)
         settings_draw(scroll.content_x, scroll.content_y, scroll.content_w, master, &master_cursor, &reveal_master, &auto_copy, &clear_seconds, &show_fingerprint, &length, &counter, &lower, &upper, &digits, &symbols, exclude, &exclude_cursor, &theme_source, &theme_mode, &theme_id, &theme_style)

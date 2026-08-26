@@ -143,8 +143,29 @@ settings_theme_modal_is_open :: () -> int {
     return settings_theme_modal_open
 }
 
-settings_content_height :: () -> int {
-    return ScaleUIPx(940)
+settings_content_height :: (master: [1024] char) -> int {
+    height: int = 0
+
+    height += ScaleUIPx(42)
+    height += ScaleUIPx(52)
+    height += ScaleUIPx(52)
+    height += ScaleUIPx(34)
+    height += ScaleUIPx(54)
+    height += ScaleUIPx(58)
+    height += ScaleUIPx(72)
+    height += ScaleUIPx(76)
+    height += ScaleUIPx(60)
+    height += ScaleUIPx(34)
+    height += ScaleUIPx(64)
+    if master[0] != 0 {
+        height += ScaleUIPx(32)
+    }
+    height += ScaleUIPx(12)
+    height += ScaleUIPx(30)
+    height += ScaleUIPx(60)
+    height += ScaleUIPx(52)
+
+    return height
 }
 
 settings_draw_theme_modal :: (
