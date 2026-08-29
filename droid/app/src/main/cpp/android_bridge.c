@@ -8,6 +8,7 @@
 
 #if ANDROID_BUILD
 
+#include "android_surface.h"
 #include "kryon.h"
 #include "theme.h"
 #include "ui_dpi.h"
@@ -28,16 +29,6 @@ extern struct android_app *GetAndroidApp(void);
 #define LOG_TAG "PASS_JNI"
 
 static pthread_mutex_t bridge_mutex = PTHREAD_MUTEX_INITIALIZER;
-static int insets_system_left = 0;
-static int insets_system_top = 0;
-static int insets_system_right = 0;
-static int insets_system_bottom = 0;
-static int insets_ime_bottom = 0;
-static int insets_cutout_left = 0;
-static int insets_cutout_top = 0;
-static int insets_cutout_right = 0;
-static int insets_cutout_bottom = 0;
-static int insets_ready = 0;
 static float device_density = 0.0f;
 
 static int
@@ -46,6 +37,17 @@ scaled_inset(int java_px, float density)
     if(density <= 0.0f)
         density = 1.0f;
     return (int)(java_px / density + 0.5f);
+}
+
+static float
+current_device_density(void)
+{
+    float density;
+
+    pthread_mutex_lock(&bridge_mutex);
+    density = device_density;
+    pthread_mutex_unlock(&bridge_mutex);
+    return density;
 }
 
 static int
@@ -88,16 +90,6 @@ void
 android_bridge_init(void)
 {
     pthread_mutex_lock(&bridge_mutex);
-    insets_system_left = 0;
-    insets_system_top = 0;
-    insets_system_right = 0;
-    insets_system_bottom = 0;
-    insets_ime_bottom = 0;
-    insets_cutout_left = 0;
-    insets_cutout_top = 0;
-    insets_cutout_right = 0;
-    insets_cutout_bottom = 0;
-    insets_ready = 0;
     device_density = 0.0f;
     pthread_mutex_unlock(&bridge_mutex);
 }
@@ -168,78 +160,46 @@ done:
 int
 android_bridge_left_reserved(void)
 {
-    int system, cutout, ready;
-    float density;
+    KrySafeArea safe_area = GetAndroidSafeArea();
 
-    pthread_mutex_lock(&bridge_mutex);
-    system = insets_system_left;
-    cutout = insets_cutout_left;
-    density = device_density;
-    ready = insets_ready;
-    pthread_mutex_unlock(&bridge_mutex);
-
-    if(!ready)
+    if(!GetAndroidWindowInsets(NULL))
         return 0;
-    return scaled_inset(system > cutout ? system : cutout, density);
+    return scaled_inset(safe_area.left, current_device_density());
 }
 
 int
 android_bridge_top_reserved(void)
 {
-    int system, cutout, top, ready;
-    float density;
+    KrySafeArea safe_area = GetAndroidSafeArea();
 
-    pthread_mutex_lock(&bridge_mutex);
-    system = insets_system_top;
-    cutout = insets_cutout_top;
-    density = device_density;
-    ready = insets_ready;
-    pthread_mutex_unlock(&bridge_mutex);
-
-    if(!ready)
+    if(!GetAndroidWindowInsets(NULL))
         return 28; /* conservative status-bar guess until Java reports */
-    top = system > cutout ? system : cutout;
-    return scaled_inset(top, density);
+    return scaled_inset(safe_area.top, current_device_density());
 }
 
 int
 android_bridge_right_reserved(void)
 {
-    int system, cutout, ready;
-    float density;
+    KrySafeArea safe_area = GetAndroidSafeArea();
 
-    pthread_mutex_lock(&bridge_mutex);
-    system = insets_system_right;
-    cutout = insets_cutout_right;
-    density = device_density;
-    ready = insets_ready;
-    pthread_mutex_unlock(&bridge_mutex);
-
-    if(!ready)
+    if(!GetAndroidWindowInsets(NULL))
         return 0;
-    return scaled_inset(system > cutout ? system : cutout, density);
+    return scaled_inset(safe_area.right, current_device_density());
 }
 
 int
 android_bridge_bottom_reserved(void)
 {
-    int system, ime, cutout, bottom, ready;
-    float density;
-
-    pthread_mutex_lock(&bridge_mutex);
-    system = insets_system_bottom;
-    ime = insets_ime_bottom;
-    cutout = insets_cutout_bottom;
-    density = device_density;
-    ready = insets_ready;
-    pthread_mutex_unlock(&bridge_mutex);
+    AndroidWindowInsets insets;
+    KrySafeArea safe_area = GetAndroidSafeArea();
+    int ready = GetAndroidWindowInsets(&insets);
+    int bottom = safe_area.bottom;
 
     if(!ready)
         return 48; /* conservative nav-bar guess until Java reports */
-    bottom = system > cutout ? system : cutout;
-    if(ime > bottom)
-        bottom = ime;
-    return scaled_inset(bottom, density);
+    if(insets.ime_bottom > bottom)
+        bottom = insets.ime_bottom;
+    return scaled_inset(bottom, current_device_density());
 }
 
 void
@@ -484,18 +444,9 @@ Java_xyz_waozi_pass_MainActivity_nativeSetInsets(JNIEnv *env, jobject thiz,
     (void)env;
     (void)thiz;
 
-    pthread_mutex_lock(&bridge_mutex);
-    insets_system_left = system_left;
-    insets_system_top = system_top;
-    insets_system_right = system_right;
-    insets_system_bottom = system_bottom;
-    insets_ime_bottom = ime_bottom;
-    insets_cutout_left = cutout_left;
-    insets_cutout_top = cutout_top;
-    insets_cutout_right = cutout_right;
-    insets_cutout_bottom = cutout_bottom;
-    insets_ready = 1;
-    pthread_mutex_unlock(&bridge_mutex);
+    SetAndroidWindowInsets(system_left, system_top, system_right, system_bottom,
+                           ime_bottom,
+                           cutout_left, cutout_top, cutout_right, cutout_bottom);
 }
 
 JNIEXPORT void JNICALL
