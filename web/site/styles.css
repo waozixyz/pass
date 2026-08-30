@@ -189,13 +189,12 @@ footer {
 }
 
 .hero {
-  min-height: min(760px, calc(100vh - 74px));
-  display: grid;
-  grid-template-columns: minmax(0, 0.78fr) minmax(420px, 0.9fr);
-  align-items: center;
-  gap: 44px;
-  padding-top: 42px;
-  padding-bottom: 42px;
+  max-width: 720px;
+  min-height: min(620px, calc(100vh - 74px));
+  display: block;
+  padding-top: 82px;
+  padding-bottom: 68px;
+  text-align: center;
 }
 
 .hero-copy {
@@ -227,7 +226,7 @@ footer {
 .hero-icon {
   width: 96px;
   height: 96px;
-  margin-top: 4px;
+  margin: 4px auto 0;
   border: 1px solid var(--line-strong);
   border-radius: 8px;
   box-shadow: var(--bevel);
@@ -235,6 +234,7 @@ footer {
 
 .lede {
   max-width: 660px;
+  margin: 0 auto;
   color: var(--muted);
   font-size: 17px;
   line-height: 1.65;
@@ -255,6 +255,7 @@ footer {
 .actions {
   display: flex;
   flex-wrap: wrap;
+  justify-content: center;
   gap: 12px;
   margin-top: 24px;
 }
@@ -536,23 +537,11 @@ footer {
 
   .hero {
     min-height: auto;
-    grid-template-columns: 1fr;
-    gap: 24px;
     padding-top: 40px;
   }
 
   .hero-copy {
-    display: grid;
-    grid-template-columns: 76px minmax(0, 1fr);
-    align-items: center;
-    column-gap: 16px;
-  }
-
-  .hero-copy .eyebrow,
-  .hero-copy .lede,
-  .hero-copy .version,
-  .hero-copy .actions {
-    grid-column: 1 / -1;
+    display: block;
   }
 
   .hero-icon {
@@ -561,13 +550,8 @@ footer {
   }
 
   h1 {
-    margin-top: 0;
+    margin-top: 18px;
     font-size: 58px;
-  }
-
-  .home-app {
-    min-height: 600px;
-    height: 700px;
   }
 
   .downloads-board {
@@ -583,10 +567,6 @@ footer {
     padding-right: 14px;
   }
 
-  .hero-copy {
-    display: block;
-  }
-
   h1 {
     margin-top: 18px;
     font-size: 52px;
@@ -594,12 +574,6 @@ footer {
 
   h2 {
     font-size: 34px;
-  }
-
-  .home-app {
-    min-height: 520px;
-    height: calc(100vh - 156px);
-    height: calc(100dvh - 156px);
   }
 
   .download-platform {
