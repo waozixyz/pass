@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="246" height="72" viewBox="0 0 246 72" role="img" aria-label="Download from pass.waozi.xyz">
+  <rect x="1" y="1" width="244" height="70" rx="8" fill="#070707" stroke="#242424" stroke-width="2"/>
+  <path d="M43 14v28" stroke="#ffffff" stroke-width="7" stroke-linecap="round"/>
+  <path d="M29 34l14 14 14-14" fill="none" stroke="#ffffff" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="27" y="54" width="32" height="5" rx="2.5" fill="#8fcfc8"/>
+  <text x="78" y="28" fill="#f7f7f7" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="700" letter-spacing=".5">DOWNLOAD FROM</text>
+  <text x="78" y="51" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="22" font-weight="700">pass.waozi.xyz</text>
+</svg>

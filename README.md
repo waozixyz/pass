@@ -1,3 +1,16 @@
+<p align="center">
+  <img src="assets/app/readme-banner.png" alt="Pass" width="100%">
+</p>
+
+<p align="center">
+  <a href="https://f-droid.org/packages/xyz.waozi.pass/">
+    <img src="assets/app/badge-f-droid.svg" alt="Get it on F-Droid" height="56">
+  </a>
+  <a href="https://pass.waozi.xyz/#downloads">
+    <img src="assets/app/badge-downloads.svg" alt="Download from pass.waozi.xyz" height="56">
+  </a>
+</p>
+
 # pass
 
 Website and browser app: [pass.waozi.xyz](https://pass.waozi.xyz/)
