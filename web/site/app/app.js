@@ -1,8 +1,13 @@
+var currentScript = document.currentScript;
+var appBase = currentScript && currentScript.dataset && currentScript.dataset.appBase
+  ? currentScript.dataset.appBase
+  : '';
+if (appBase && appBase.charAt(appBase.length - 1) !== '/') appBase += '/';
 var statusElement = document.getElementById('status');
 var loadingScreen = document.getElementById('loading-screen');
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('sw.js').catch(function() {});
+  navigator.serviceWorker.register(appBase + 'sw.js').catch(function() {});
 }
 
 function setStatus(text) {
@@ -82,7 +87,7 @@ window.addEventListener('error', function(event) {
 
 var script = document.createElement('script');
 script.async = true;
-script.src = 'index.js';
+script.src = appBase + 'index.js';
 script.onload = function() { setStatus('Starting app...'); hideWhenCanvasPaints(); };
 script.onerror = function() { setStatus('App failed to load'); };
 document.body.appendChild(script);

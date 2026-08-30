@@ -6,35 +6,140 @@
   <title>Pass — deterministic passwords</title>
   <meta name="description" content="Generate deterministic passwords locally with the BSD-licensed Pass CLI, desktop app, or browser app.">
   <link rel="canonical" href="https://pass.waozi.xyz/">
-  <meta name="theme-color" content="#f3f1ea">
+  <meta name="theme-color" content="#f7ede2">
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png">
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
-  <header class="site-header"><div class="site-header-inner"><a class="brand" href="/"><img src="/icons/icon-192.png" alt="">Pass</a><nav class="header-nav"><a href="#downloads">Downloads</a><a href="#privacy">Privacy</a><a href="https://waozi.xyz">Waozi ↗</a><a class="button small" href="/app/">Run Web</a></nav></div></header>
-  <main>
-    <section class="hero">
-      <div><p class="eyebrow">Stateless · local · open source</p><img class="hero-icon" src="/icons/icon-192.png" alt="Pass"><h1>One master password.<br><span>Every site covered.</span></h1><p class="lede">Pass derives strong, repeatable passwords on your device. Nothing is stored, uploaded, or tracked.</p><div class="actions"><a class="button primary" href="/app/">Run Web</a><a class="button" href="#downloads">Download apps</a></div></div>
-      <div class="preview" id="generator"><div class="preview-head"><i></i><i></i><i></i><span>generated locally</span></div><div class="preview-body"><div class="form-grid">
-        <label>Site<input id="site" autocomplete="off" placeholder="example.org"></label><label>Login<input id="login" autocomplete="username" placeholder="you@example.org"></label>
-        <label class="wide">Master password<span class="password-wrap"><input id="master" type="password" autocomplete="current-password"><button id="reveal" type="button" class="inline">Reveal</button></span></label>
-        <label>Length<input id="length" type="number" min="5" max="35" value="16"></label><label>Counter<input id="counter" type="number" min="1" value="1"></label><label class="wide">Excluded characters<input id="exclude" autocomplete="off"></label>
-        <fieldset class="wide"><legend>Character classes</legend><label><input id="lower" type="checkbox" checked> Lowercase</label><label><input id="upper" type="checkbox" checked> Uppercase</label><label><input id="digits" type="checkbox" checked> Digits</label><label><input id="symbols" type="checkbox" checked> Symbols</label></fieldset>
-        <div class="wide actions"><button id="generate" class="button" disabled>Generate</button><button id="copy" class="button secondary" disabled>Copy</button><button id="clear" class="button ghost">Clear</button></div>
-        <output id="result" class="wide" aria-live="polite">Your generated password appears here</output><p id="message" class="wide status"></p>
-      </div><div class="privacy-line">No network requests. No password database.</div></div></div>
+  <header class="site-header">
+    <div class="site-header-inner">
+      <a class="brand" href="/">
+        <img src="/icons/icon-192.png" alt="">
+        <span>PASS</span>
+      </a>
+      <nav class="header-nav" aria-label="Primary">
+        <a href="#downloads">Download</a>
+        <a href="#features">Features</a>
+        <a href="#privacy">Privacy</a>
+        <a class="is-external" href="https://waozi.xyz">Waozi ↗</a>
+      </nav>
+    </div>
+  </header>
+  <main id="main-content">
+    <section class="hero" aria-label="Pass introduction">
+      <div class="hero-copy">
+        <span class="eyebrow"><span class="dot"></span>Stateless &middot; local &middot; open source</span>
+        <img class="hero-icon" src="/icons/icon-192.png" alt="Pass">
+        <h1>Pass</h1>
+        <p class="lede">Deterministic passwords generated locally from one master password, with no vault, account, tracking, or backend service.</p>
+        <p class="version">${version}</p>
+        <div class="actions">
+          <a class="button primary" href="#downloads">Download</a>
+          <a class="button" href="/app/">Open web app</a>
+        </div>
+      </div>
+      <div class="hero-panel">
+        <div class="hero-panel-bar">
+          <span class="tl"></span>
+          <span class="tl"></span>
+          <span class="tl"></span>
+          <span class="title">web app</span>
+        </div>
+        <div class="home-app" aria-label="Pass web app">
+          <div class="loading-screen" id="loading-screen" role="status" aria-live="polite">
+            <div class="loading-panel">
+              <img src="/icons/icon-192.png" alt="" width="76" height="76">
+              <strong>Pass</strong>
+              <div id="status">Loading app...</div>
+            </div>
+          </div>
+          <div class="canvas-stage">
+            <div class="canvas-frame" id="canvas-frame">
+              <canvas class="emscripten" id="canvas" width="720" height="740" oncontextmenu="event.preventDefault()" tabindex="-1"></canvas>
+            </div>
+          </div>
+        </div>
+      </div>
     </section>
-    <section id="downloads"><p class="eyebrow">DOWNLOADS</p><h2>Choose your interface</h2><div class="cards">
-      <article><span class="tag">ANDROID</span><h3>Android</h3><p>Native app with the same generator and biometric-protected master password storage. Android 5.0 and newer; no Internet permission.</p><div class="links"><a class="channel" href="/downloads/pass-android.apk"><img src="/icons/droid.png" alt="" width="16" height="16">Direct APK</a><a class="channel" href="https://f-droid.org/packages/xyz.waozi.pass/"><img src="/icons/fdroid.png" alt="" width="16" height="16">F-Droid</a></div></article>
-      <article><span class="tag">DESKTOP</span><h3>Desktop GUI</h3><p>Visual controls, secure masked input, built-in self-updates, and clipboard clearing.</p><div class="links"><a href="https://github.com/waozixyz/pass/releases/latest/download/pass-${version}-x86_64.AppImage">AppImage x86_64</a><a href="https://github.com/waozixyz/pass/releases/latest/download/pass-${version}-aarch64.AppImage">AppImage ARM64</a><a href="https://github.com/waozixyz/pass/releases/latest/download/pass_${version}_amd64.deb">.deb amd64</a><a href="https://github.com/waozixyz/pass/releases/latest/download/pass_${version}_arm64.deb">.deb arm64</a><a href="/downloads/pass-gui-linux-amd64.tar.gz">Tarball x86_64</a><a href="/downloads/pass-gui-linux-arm64.tar.gz">Tarball ARM64</a></div></article>
-      <article><span class="tag">TERMINAL</span><h3>CLI</h3><p>Small, scriptable binaries for servers and workstations.</p><div class="links"><a href="/downloads/pass-cli-linux-amd64.tar.gz">Linux x86_64</a><a href="/downloads/pass-cli-linux-arm64.tar.gz">Linux ARM64</a><a href="/downloads/pass-cli-darwin-amd64.tar.gz">macOS Intel</a><a href="/downloads/pass-cli-darwin-arm64.tar.gz">macOS ARM</a><a href="/downloads/pass-cli-windows-amd64.zip">Windows x86_64</a><a href="/downloads/pass-cli-freebsd-amd64.tar.gz">FreeBSD</a></div></article>
-      <article><span class="tag">BROWSER</span><h3>Web app</h3><p>The real Pass app compiled to WebAssembly with Kryon's canvas backend. Runs entirely in your tab.</p><div class="links"><a href="/app/">Open web app</a></div></article>
-    </div><p class="downloads-note">Every download is covered by the release <a href="https://github.com/waozixyz/pass/releases/latest/download/SHA256SUMS">SHA256SUMS</a> checksums.</p></section>
-    <section class="privacy" id="privacy"><p class="eyebrow">PRIVACY</p><h2>Your master password stays yours.</h2><p>The desktop and browser apps derive passwords locally. The website has no analytics, accounts, cookies, or backend API. Source and releases remain available under BSD-3-Clause.</p></section>
+    <section class="downloads-section" id="downloads" aria-labelledby="downloads-title">
+      <div class="section-heading">
+        <p class="section-eyebrow"><span class="dot"></span>Download</p>
+        <h2 id="downloads-title">Choose your Pass build.</h2>
+        <p>Version ${version}. Every package is covered by the release <a href="https://github.com/waozixyz/pass/releases/latest/download/SHA256SUMS">SHA256SUMS</a> checksums.</p>
+      </div>
+      <div class="downloads-board">
+        <article class="download-platform">
+          <div class="download-platform-icon"><img src="/icons/droid.png" alt=""></div>
+          <div class="download-platform-body">
+            <h3>Android</h3>
+            <p>Native app with biometric-protected master password storage. Android 5.0 and newer; no Internet permission.</p>
+            <nav class="download-pills" aria-label="Android downloads">
+              <a class="is-primary" href="/downloads/pass-android.apk">Direct APK</a>
+              <a href="https://f-droid.org/packages/xyz.waozi.pass/">F-Droid</a>
+            </nav>
+          </div>
+        </article>
+        <article class="download-platform">
+          <div class="download-platform-icon"><img src="/icons/icon-192.png" alt=""></div>
+          <div class="download-platform-body">
+            <h3>Desktop GUI</h3>
+            <p>Visual controls, secure masked input, built-in self-updates, and clipboard clearing.</p>
+            <nav class="download-pills" aria-label="Desktop downloads">
+              <a class="is-primary" href="https://github.com/waozixyz/pass/releases/latest/download/pass-${version}-x86_64.AppImage">AppImage x86_64</a>
+              <a href="https://github.com/waozixyz/pass/releases/latest/download/pass-${version}-aarch64.AppImage">AppImage ARM64</a>
+              <a href="https://github.com/waozixyz/pass/releases/latest/download/pass_${version}_amd64.deb">.deb amd64</a>
+              <a href="https://github.com/waozixyz/pass/releases/latest/download/pass_${version}_arm64.deb">.deb arm64</a>
+              <a href="/downloads/pass-gui-linux-amd64.tar.gz">Tarball x86_64</a>
+              <a href="/downloads/pass-gui-linux-arm64.tar.gz">Tarball ARM64</a>
+            </nav>
+          </div>
+        </article>
+        <article class="download-platform">
+          <div class="download-platform-icon"><img src="/icons/icon-192.png" alt=""></div>
+          <div class="download-platform-body">
+            <h3>CLI</h3>
+            <p>Small scriptable binaries for terminals, servers, and workstations.</p>
+            <nav class="download-pills" aria-label="CLI downloads">
+              <a class="is-primary" href="/downloads/pass-cli-linux-amd64.tar.gz">Linux x86_64</a>
+              <a href="/downloads/pass-cli-linux-arm64.tar.gz">Linux ARM64</a>
+              <a href="/downloads/pass-cli-darwin-amd64.tar.gz">macOS Intel</a>
+              <a href="/downloads/pass-cli-darwin-arm64.tar.gz">macOS ARM</a>
+              <a href="/downloads/pass-cli-windows-amd64.zip">Windows x86_64</a>
+              <a href="/downloads/pass-cli-freebsd-amd64.tar.gz">FreeBSD</a>
+            </nav>
+          </div>
+        </article>
+        <article class="download-platform">
+          <div class="download-platform-icon"><img src="/icons/icon-192.png" alt=""></div>
+          <div class="download-platform-body">
+            <h3>Web app</h3>
+            <p>The Pass app compiled to WebAssembly with Kryon's canvas backend. Runs entirely in your tab.</p>
+            <nav class="download-pills" aria-label="Web app links">
+              <a class="is-primary" href="/app/">Open web app</a>
+            </nav>
+          </div>
+        </article>
+      </div>
+    </section>
+    <section class="features-section" id="features">
+      <p class="section-eyebrow"><span class="dot"></span>Features</p>
+      <h2>Small by design.</h2>
+      <div class="features-grid">
+        <div class="feature-item"><h3>Deterministic</h3><p>Generate the same password from the same site, login, master password, and settings.</p></div>
+        <div class="feature-item"><h3>Local-first</h3><p>No password database, no sync account, no analytics, and no network service required for generation.</p></div>
+        <div class="feature-item"><h3>Portable</h3><p>Use the same generator across Android, desktop, terminal, and web builds.</p></div>
+        <div class="feature-item"><h3>Open source</h3><p>Source and releases remain available under BSD-3-Clause.</p></div>
+      </div>
+    </section>
+    <section class="privacy-section" id="privacy">
+      <p class="section-eyebrow"><span class="dot"></span>Privacy</p>
+      <h2>Your master password stays yours.</h2>
+      <p>The desktop and browser apps derive passwords locally. The website has no analytics, accounts, cookies, or backend API.</p>
+    </section>
   </main>
   <footer><span>© 2026 <a href="https://waozi.xyz">Waozi</a></span></footer>
-<script src="home.js"></script>
+<script src="/app/app.js" data-app-base="/app/"></script>
 </body>
 </html>

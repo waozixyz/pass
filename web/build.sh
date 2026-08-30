@@ -15,7 +15,6 @@ if [ -z "$version" ]; then
 fi
 sed "s/\${version}/$version/g" "$root_dir/web/site/index.html" > "$out_dir/index.html"
 cp "$root_dir/web/site/styles.css" "$out_dir/styles.css"
-cp "$root_dir/web/site/home.js" "$out_dir/home.js"
 cp "$root_dir/web/site/app/index.html" "$out_dir/app/index.html"
 cp "$root_dir/web/site/app/app.js" "$out_dir/app/app.js"
 cp "$root_dir/web/site/CNAME" "$out_dir/CNAME"
@@ -33,5 +32,4 @@ cp "$root_dir/build/web-app/index.js" "$out_dir/app/index.js"
 cp "$root_dir/build/web-app/index.wasm" "$out_dir/app/index.wasm"
 
 test -s "$out_dir/app/index.wasm"
-test -s "$out_dir/home.js"
 printf 'built site at %s\n' "$out_dir"
