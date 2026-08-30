@@ -4,10 +4,7 @@
 
 <p align="center">
   <a href="https://f-droid.org/packages/xyz.waozi.pass/">
-    <img src="assets/app/badge-f-droid.svg" alt="Get it on F-Droid" height="56">
-  </a>
-  <a href="https://pass.waozi.xyz/#downloads">
-    <img src="assets/app/badge-downloads.svg" alt="Download from pass.waozi.xyz" height="56">
+    <img src="assets/app/badge-f-droid.png" alt="Get it on F-Droid" height="56">
   </a>
 </p>
 
