@@ -40,6 +40,14 @@ html {
   scroll-padding-top: 72px;
 }
 
+.nl-wrap,
+.nl-badge,
+.nl-card {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
 body {
   min-height: 100vh;
   margin: 0;
