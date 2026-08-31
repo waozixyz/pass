@@ -163,6 +163,19 @@ footer {
   border-radius: 5px;
 }
 
+.site-return {
+  display: inline-flex;
+  align-items: center;
+  color: var(--link);
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.site-return:hover {
+  color: var(--ink);
+}
+
 .header-nav {
   display: flex;
   align-items: center;
@@ -176,8 +189,7 @@ footer {
   font-size: 13px;
 }
 
-.header-nav a:hover,
-.header-nav .is-external {
+.header-nav a:hover {
   color: var(--link);
 }
 
@@ -531,7 +543,7 @@ footer {
 }
 
 @media (max-width: 860px) {
-  .header-nav a:not(.is-external) {
+  .header-nav {
     display: none;
   }
 
