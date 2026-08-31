@@ -1,12 +1,13 @@
 #import "kryon.h"
+#import "android_host.h"
 
 pass_save_settings :: (auto_copy: int, clear_seconds: int, show_fingerprint: int, length: int, counter: int, lower: int, upper: int, digits: int, symbols: int, exclude: const char*, theme_source: int, theme_mode: int, theme_id: int, theme_style: int) -> int #extern "pass_save_settings"
 pass_save_master :: (master: const char*, require_biometric: int) -> int #extern "pass_save_master"
 pass_clear_master :: () -> int #extern "pass_clear_master"
-pass_biometric_available :: () -> int #extern "pass_biometric_available"
-pass_master_saved :: () -> int #extern "pass_master_saved"
 pass_fingerprint_status :: () -> char* #extern "pass_fingerprint_status"
 pass_master_emoji :: (master: const char*) -> char* #extern "pass_master_emoji"
+AndroidSecureStoreBiometricAvailable :: () -> int #extern "AndroidSecureStoreBiometricAvailable"
+AndroidSecureStoreHasSecret :: (key: const char*) -> int #extern "AndroidSecureStoreHasSecret"
 
 state {
     settings_theme_modal_open: int = 0
@@ -124,10 +125,10 @@ settings_draw :: (
     Text(pass_fingerprint_status(), x, y, Text12, GetThemeIcon())
     y += ScaleUIPx(30)
 
-    if Button((ButtonProps){.bounds = {x, y, width / 2 - ScaleUIPx(6), ScaleUIPx(42)}, .label = "Save", .style = ButtonStylePrimary, .font = Text16, .id = 520, .disabled = pass_biometric_available() == 0}) {
+    if Button((ButtonProps){.bounds = {x, y, width / 2 - ScaleUIPx(6), ScaleUIPx(42)}, .label = "Save", .style = ButtonStylePrimary, .font = Text16, .id = 520, .disabled = AndroidSecureStoreBiometricAvailable() == 0}) {
         pass_save_master(master, 1)
     }
-    if Button((ButtonProps){.bounds = {x + width / 2 + ScaleUIPx(6), y, width / 2 - ScaleUIPx(6), ScaleUIPx(42)}, .label = "Forget", .style = ButtonStyleSecondary, .font = Text16, .id = 522, .disabled = pass_master_saved() == 0}) {
+    if Button((ButtonProps){.bounds = {x + width / 2 + ScaleUIPx(6), y, width / 2 - ScaleUIPx(6), ScaleUIPx(42)}, .label = "Forget", .style = ButtonStyleSecondary, .font = Text16, .id = 522, .disabled = AndroidSecureStoreHasSecret("default") == 0}) {
         pass_clear_master()
     }
     y += ScaleUIPx(60)

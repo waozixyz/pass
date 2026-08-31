@@ -6,6 +6,8 @@ import android.view.ViewGroup;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputConnection;
 
+import com.kryonlabs.kryon.TextInputBridge;
+
 public final class TextInputBridgeHarnessActivity extends Activity {
     private TextInputBridge bridge;
     private StringBuilder committedText = new StringBuilder();

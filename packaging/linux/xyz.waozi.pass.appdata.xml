@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <component type="desktop-application">
   <id>xyz.waozi.pass</id>
-  <name>pass</name>
+  <name>Pass</name>
   <summary>Generate deterministic passwords locally</summary>
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>BSD-3-Clause</project_license>
   <description>
-    <p>pass derives repeatable passwords from a site, login, master password, and generation settings without storing a password database.</p>
+    <p>Pass derives repeatable passwords from a site, login, master password, and generation settings without storing a password database.</p>
   </description>
   <launchable type="desktop-id">xyz.waozi.pass.desktop</launchable>
   <url type="homepage">https://github.com/waozixyz/pass</url>

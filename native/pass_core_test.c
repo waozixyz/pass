@@ -66,23 +66,61 @@ check_derive(int index, const char *password, const char *salt, const char *want
 }
 
 static void
-check_sha256(void)
+check_derive_bytes(int index, const char *password, size_t password_len,
+                   const char *salt, size_t salt_len, const char *want_hex)
 {
     uint8_t out[32];
     char hex[65];
     int i;
 
-    pass_core_sha256("correct horse battery staple", strlen("correct horse battery staple"), out);
+    pass_core_derive_key(password, password_len, salt, salt_len, out);
     for(i = 0; i < 32; i++)
         sprintf(hex + i * 2, "%02x", out[i]);
     hex[64] = '\0';
 
-    if(strcmp(hex, "c4bbcb1fbec99d65bf59d85c8cb62ee2db963f0fe106f483d9afa73bd4e39a8a") != 0) {
-        printf("FAIL sha256: got %s\n", hex);
+    if(strcmp(hex, want_hex) != 0) {
+        printf("FAIL derive %d: got %s, want %s\n", index, hex, want_hex);
         failures++;
     } else {
-        printf("ok   sha256: %s\n", hex);
+        printf("ok   derive %d: %s\n", index, hex);
     }
+}
+
+static void
+check_sha256_hex(int index, const void *data, size_t len, const char *want_hex)
+{
+    uint8_t out[32];
+    char hex[65];
+    int i;
+
+    pass_core_sha256(data, len, out);
+    for(i = 0; i < 32; i++)
+        sprintf(hex + i * 2, "%02x", out[i]);
+    hex[64] = '\0';
+
+    if(strcmp(hex, want_hex) != 0) {
+        printf("FAIL sha256 %d: got %s, want %s\n", index, hex, want_hex);
+        failures++;
+    } else {
+        printf("ok   sha256 %d: %s\n", index, hex);
+    }
+}
+
+static void
+check_sha256(void)
+{
+    char sixty[60];
+
+    memset(sixty, 'a', sizeof(sixty));
+    check_sha256_hex(1, "", 0,
+        "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
+    check_sha256_hex(2, "abc", 3,
+        "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
+    check_sha256_hex(3, "correct horse battery staple",
+        strlen("correct horse battery staple"),
+        "c4bbcb1fbec99d65bf59d85c8cb62ee2db963f0fe106f483d9afa73bd4e39a8a");
+    check_sha256_hex(4, sixty, sizeof(sixty),
+        "11ee391211c6256460b6ed375957fadd8061cafbb31daf967db875aebd5aaad4");
 }
 
 static int
@@ -118,6 +156,9 @@ check_master_emoji(void)
 
     pass_core_master_emoji("correct horse battery staple", first, sizeof(first));
     pass_core_master_emoji("correct horse battery staple", again, sizeof(again));
+    pass_core_master_emoji(NULL, empty, sizeof(empty));
+    pass_core_master_emoji("ignored", NULL, sizeof(empty));
+    pass_core_master_emoji("ignored", empty, 0);
     if(strcmp(first, again) != 0 ||
        utf8_codepoint_count(first) != PASS_MASTER_EMOJI_COUNT) {
         printf("FAIL master emoji: deterministic=%d count=%d value=%s\n",
@@ -133,6 +174,18 @@ check_master_emoji(void)
                utf8_codepoint_count(empty), empty);
         failures++;
         return;
+    }
+    {
+        char tiny[2];
+
+        tiny[0] = 'x';
+        tiny[1] = '\0';
+        pass_core_master_emoji("correct horse battery staple", tiny, sizeof(tiny));
+        if(tiny[0] != '\0') {
+            printf("FAIL master emoji: tiny buffer value=%s\n", tiny);
+            failures++;
+            return;
+        }
     }
 
     pass_core_master_emoji("test", values[0], sizeof(values[0]));
@@ -225,6 +278,18 @@ main(void)
         "caa46554f5a676b76c15b368c655b0b24eaaad8595ef919999785c68e60fd5f5");
     check_derive(3, "test", "sitelogina",
         "91b368e6337bd9c7007041922ade15c2907bd53c450f73e0ba1a001e10bff7eb");
+    {
+        char long_password[80];
+        char long_salt[700];
+
+        memset(long_password, 'a', sizeof(long_password));
+        memset(long_salt, 'b', sizeof(long_salt));
+        check_derive_bytes(4, long_password, sizeof(long_password), "salt", 4,
+            "2ff041c8085dbce46f9dc5a4e8b9e5eb1d1727318c540f6697b5b0a368e158ad");
+        check_derive_bytes(5, "password", strlen("password"),
+            long_salt, sizeof(long_salt),
+            "3a4d1af4f539070e6fb4b2a0709071d03e01c7fb6c2659f6a84811eae850150b");
+    }
     check_sha256();
     check_master_emoji();
 
@@ -343,6 +408,34 @@ main(void)
 
         o.length = 4;
         check_generate(13, "site", "login", "master", o, "", 1);
+    }
+
+    {
+        PassOptions o = defaults;
+        char out[4];
+        char err[128];
+
+        memset(out, 0, sizeof(out));
+        memset(err, 0, sizeof(err));
+        if(pass_core_generate("site", "login", "master", &o,
+                              out, sizeof(out), err, sizeof(err)) == 0 ||
+           strcmp(err, "password length exceeds the output buffer") != 0) {
+            printf("FAIL small output buffer: %s\n", err);
+            failures++;
+        } else {
+            printf("ok   small output buffer: %s\n", err);
+        }
+    }
+
+    {
+        PassOptions o = defaults;
+        char long_text[700];
+
+        memset(long_text, 'x', sizeof(long_text) - 1);
+        long_text[sizeof(long_text) - 1] = '\0';
+        check_generate(14, long_text, "login", "master", o, "", 1);
+        check_generate(15, "site", long_text, "master", o, "", 1);
+        check_generate(16, NULL, NULL, NULL, o, "bb8^CBroRNj%4sP_", 0);
     }
 
     check_shape();

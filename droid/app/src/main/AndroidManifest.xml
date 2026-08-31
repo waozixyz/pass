@@ -9,7 +9,7 @@
         android:label="@string/app_name"
         android:allowBackup="false">
         <activity
-            android:name="xyz.waozi.pass.MainActivity"
+            android:name="com.kryonlabs.kryon.KryonActivity"
             android:configChanges="keyboardHidden|orientation|screenSize|smallestScreenSize|uiMode"
             android:exported="true"
             android:launchMode="singleTask"
@@ -18,6 +18,15 @@
             <meta-data
                 android:name="android.app.lib_name"
                 android:value="main" />
+            <meta-data
+                android:name="com.kryonlabs.kryon.SECURE_PREFERENCES"
+                android:value="pass_secure" />
+            <meta-data
+                android:name="com.kryonlabs.kryon.SECURE_DEFAULT_KEY_PREFIX"
+                android:value="pass_master_key" />
+            <meta-data
+                android:name="com.kryonlabs.kryon.APP_PREFERENCES"
+                android:value="pass_preferences" />
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />

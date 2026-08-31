@@ -2,7 +2,8 @@
 
 #include "pass_core.h"
 
-#include "android_bridge.h"
+#include "android_host.h"
+#include "app_storage.h"
 #include "kryon.h"
 
 #include <stdio.h>
@@ -16,6 +17,7 @@
 #define PASS_EXCLUDE_SIZE 128
 #define PASS_PASSWORD_SIZE 256
 #define PASS_STATUS_SIZE 256
+#define PASS_SETTINGS_SCOPE "pass"
 
 typedef struct {
     char name[PASS_NAME_SIZE];
@@ -69,6 +71,7 @@ enum {
 };
 
 static PassRuntime runtime;
+static const char *const PASS_SECURE_MASTER_KEY = "default";
 
 static void
 copy_text(char *dst, size_t dst_size, const char *src)
@@ -133,7 +136,7 @@ trim_newline(char *s)
 }
 
 static void
-load_settings(void)
+load_legacy_settings(void)
 {
     FILE *f = fopen("settings.cfg", "r");
     char line[256];
@@ -181,6 +184,56 @@ load_settings(void)
 }
 
 static void
+load_settings(void)
+{
+    load_legacy_settings();
+    KryAppStorageGetInt(PASS_SETTINGS_SCOPE, "auto_copy",
+                        runtime.settings.auto_copy,
+                        &runtime.settings.auto_copy);
+    KryAppStorageGetInt(PASS_SETTINGS_SCOPE, "clear_after_seconds",
+                        runtime.settings.clear_seconds,
+                        &runtime.settings.clear_seconds);
+    KryAppStorageGetInt(PASS_SETTINGS_SCOPE, "show_fingerprint",
+                        runtime.settings.show_fingerprint,
+                        &runtime.settings.show_fingerprint);
+    KryAppStorageGetInt(PASS_SETTINGS_SCOPE, "length",
+                        runtime.settings.length,
+                        &runtime.settings.length);
+    runtime.settings.length = clamp_length(runtime.settings.length);
+    KryAppStorageGetInt(PASS_SETTINGS_SCOPE, "counter",
+                        runtime.settings.counter,
+                        &runtime.settings.counter);
+    KryAppStorageGetInt(PASS_SETTINGS_SCOPE, "lower",
+                        runtime.settings.lower,
+                        &runtime.settings.lower);
+    KryAppStorageGetInt(PASS_SETTINGS_SCOPE, "upper",
+                        runtime.settings.upper,
+                        &runtime.settings.upper);
+    KryAppStorageGetInt(PASS_SETTINGS_SCOPE, "digits",
+                        runtime.settings.digits,
+                        &runtime.settings.digits);
+    KryAppStorageGetInt(PASS_SETTINGS_SCOPE, "symbols",
+                        runtime.settings.symbols,
+                        &runtime.settings.symbols);
+    KryAppStorageGetString(PASS_SETTINGS_SCOPE, "exclude",
+                           runtime.settings.exclude,
+                           runtime.settings.exclude,
+                           sizeof(runtime.settings.exclude));
+    KryAppStorageGetInt(PASS_SETTINGS_SCOPE, "theme_source",
+                        runtime.settings.theme_source,
+                        &runtime.settings.theme_source);
+    KryAppStorageGetInt(PASS_SETTINGS_SCOPE, "theme_mode",
+                        runtime.settings.theme_mode,
+                        &runtime.settings.theme_mode);
+    KryAppStorageGetInt(PASS_SETTINGS_SCOPE, "theme_id",
+                        runtime.settings.theme_id,
+                        &runtime.settings.theme_id);
+    KryAppStorageGetInt(PASS_SETTINGS_SCOPE, "theme_style",
+                        runtime.settings.theme_style,
+                        &runtime.settings.theme_style);
+}
+
+static void
 migrate_default_theme_settings(void)
 {
     int legacy_system_default =
@@ -203,27 +256,40 @@ migrate_default_theme_settings(void)
 static int
 write_settings(void)
 {
-    FILE *f = fopen("settings.cfg", "w");
+    int ok = 1;
 
-    if(f == NULL) {
+    ok &= KryAppStorageSetInt(PASS_SETTINGS_SCOPE, "auto_copy",
+                              runtime.settings.auto_copy ? 1 : 0);
+    ok &= KryAppStorageSetInt(PASS_SETTINGS_SCOPE, "clear_after_seconds",
+                              runtime.settings.clear_seconds);
+    ok &= KryAppStorageSetInt(PASS_SETTINGS_SCOPE, "show_fingerprint",
+                              runtime.settings.show_fingerprint ? 1 : 0);
+    ok &= KryAppStorageSetInt(PASS_SETTINGS_SCOPE, "length",
+                              runtime.settings.length);
+    ok &= KryAppStorageSetInt(PASS_SETTINGS_SCOPE, "counter",
+                              runtime.settings.counter);
+    ok &= KryAppStorageSetInt(PASS_SETTINGS_SCOPE, "lower",
+                              runtime.settings.lower ? 1 : 0);
+    ok &= KryAppStorageSetInt(PASS_SETTINGS_SCOPE, "upper",
+                              runtime.settings.upper ? 1 : 0);
+    ok &= KryAppStorageSetInt(PASS_SETTINGS_SCOPE, "digits",
+                              runtime.settings.digits ? 1 : 0);
+    ok &= KryAppStorageSetInt(PASS_SETTINGS_SCOPE, "symbols",
+                              runtime.settings.symbols ? 1 : 0);
+    ok &= KryAppStorageSetString(PASS_SETTINGS_SCOPE, "exclude",
+                                 runtime.settings.exclude);
+    ok &= KryAppStorageSetInt(PASS_SETTINGS_SCOPE, "theme_source",
+                              runtime.settings.theme_source);
+    ok &= KryAppStorageSetInt(PASS_SETTINGS_SCOPE, "theme_mode",
+                              runtime.settings.theme_mode);
+    ok &= KryAppStorageSetInt(PASS_SETTINGS_SCOPE, "theme_id",
+                              runtime.settings.theme_id);
+    ok &= KryAppStorageSetInt(PASS_SETTINGS_SCOPE, "theme_style",
+                              runtime.settings.theme_style);
+    if(!ok) {
         copy_text(runtime.status, sizeof(runtime.status), "Could not save settings");
         return 1;
     }
-    fprintf(f, "auto_copy=%d\n", runtime.settings.auto_copy ? 1 : 0);
-    fprintf(f, "clear_after_seconds=%d\n", runtime.settings.clear_seconds);
-    fprintf(f, "show_fingerprint=%d\n", runtime.settings.show_fingerprint ? 1 : 0);
-    fprintf(f, "length=%d\n", runtime.settings.length);
-    fprintf(f, "counter=%d\n", runtime.settings.counter);
-    fprintf(f, "lower=%d\n", runtime.settings.lower ? 1 : 0);
-    fprintf(f, "upper=%d\n", runtime.settings.upper ? 1 : 0);
-    fprintf(f, "digits=%d\n", runtime.settings.digits ? 1 : 0);
-    fprintf(f, "symbols=%d\n", runtime.settings.symbols ? 1 : 0);
-    fprintf(f, "exclude=%s\n", runtime.settings.exclude);
-    fprintf(f, "theme_source=%d\n", runtime.settings.theme_source);
-    fprintf(f, "theme_mode=%d\n", runtime.settings.theme_mode);
-    fprintf(f, "theme_id=%d\n", runtime.settings.theme_id);
-    fprintf(f, "theme_style=%d\n", runtime.settings.theme_style);
-    fclose(f);
     copy_text(runtime.status, sizeof(runtime.status), "Settings saved");
     return 0;
 }
@@ -340,7 +406,8 @@ void
 pass_runtime_tick(void)
 {
     char result[1024];
-    int status = android_bridge_take_secure_result(result, sizeof(result));
+    int status = AndroidSecureStoreTakeResult(PASS_SECURE_MASTER_KEY,
+                                              result, sizeof(result));
 
     if(status == 2) {
         if(runtime.secure_action == PASS_SECURE_ACTION_UNLOCK) {
@@ -377,11 +444,6 @@ pass_runtime_master_emoji_codepoints(int *count)
 {
     return pass_core_master_emoji_codepoints(count);
 }
-
-int pass_safe_left(void) { return android_bridge_left_reserved(); }
-int pass_safe_top(void) { return android_bridge_top_reserved(); }
-int pass_safe_right(void) { return android_bridge_right_reserved(); }
-int pass_safe_bottom(void) { return android_bridge_bottom_reserved(); }
 
 int
 pass_generate(const char *site, const char *login, const char *master,
@@ -624,16 +686,17 @@ pass_save_master(const char *master, int require_biometric)
         copy_text(runtime.status, sizeof(runtime.status), "Enter master password first");
         return 1;
     }
-    if(require_biometric && !android_bridge_biometric_available()) {
+    if(require_biometric && !AndroidSecureStoreBiometricAvailable()) {
         runtime.secure_action = PASS_SECURE_ACTION_NONE;
         copy_text(runtime.status, sizeof(runtime.status),
-                  android_bridge_biometric_setup_required()
+                  AndroidSecureStoreBiometricSetupRequired()
                       ? "Set up Android fingerprint first"
                       : "Fingerprint unlock unavailable");
         return 1;
     }
     runtime.secure_action = PASS_SECURE_ACTION_SAVE;
-    android_bridge_save_master(master, require_biometric);
+    AndroidSecureStoreSaveSecret(PASS_SECURE_MASTER_KEY, master,
+                                 require_biometric, "master password");
     copy_text(runtime.status, sizeof(runtime.status), "Saving master");
     return 0;
 }
@@ -641,13 +704,13 @@ pass_save_master(const char *master, int require_biometric)
 int
 pass_unlock_master(void)
 {
-    if(!android_bridge_master_saved()) {
+    if(!AndroidSecureStoreHasSecret(PASS_SECURE_MASTER_KEY)) {
         runtime.secure_action = PASS_SECURE_ACTION_NONE;
         copy_text(runtime.status, sizeof(runtime.status), "No saved master password");
         return 1;
     }
     runtime.secure_action = PASS_SECURE_ACTION_UNLOCK;
-    android_bridge_unlock_master();
+    AndroidSecureStoreUnlockSecret(PASS_SECURE_MASTER_KEY, "master password");
     copy_text(runtime.status, sizeof(runtime.status), "Unlock requested");
     return 0;
 }
@@ -655,7 +718,7 @@ pass_unlock_master(void)
 int
 pass_clear_master(void)
 {
-    android_bridge_clear_master();
+    AndroidSecureStoreClearSecret(PASS_SECURE_MASTER_KEY);
     memset(runtime.unlocked_master, 0, sizeof(runtime.unlocked_master));
     runtime.has_unlocked_master = 0;
     runtime.secure_action = PASS_SECURE_ACTION_NONE;
@@ -663,37 +726,17 @@ pass_clear_master(void)
     return 0;
 }
 
-int
-pass_can_unlock_master(void)
-{
-    return android_bridge_master_saved() &&
-           android_bridge_master_biometric() &&
-           android_bridge_biometric_available();
-}
-
-int
-pass_biometric_available(void)
-{
-    return android_bridge_biometric_available();
-}
-
-int
-pass_master_saved(void)
-{
-    return android_bridge_master_saved();
-}
-
 char *
 pass_fingerprint_status(void)
 {
-    if(!android_bridge_biometric_available()) {
+    if(!AndroidSecureStoreBiometricAvailable()) {
         copy_text(runtime.fingerprint_status, sizeof(runtime.fingerprint_status),
-                  android_bridge_biometric_setup_required()
+                  AndroidSecureStoreBiometricSetupRequired()
                       ? "Android fingerprint setup required"
                       : "Fingerprint unlock is not available");
-    } else if(android_bridge_master_saved()) {
+    } else if(AndroidSecureStoreHasSecret(PASS_SECURE_MASTER_KEY)) {
         copy_text(runtime.fingerprint_status, sizeof(runtime.fingerprint_status),
-                  android_bridge_master_biometric()
+                  AndroidSecureStoreSecretUsesBiometric(PASS_SECURE_MASTER_KEY)
                       ? "Saved master uses fingerprint unlock"
                       : "Saved master unlocks without fingerprint");
     } else {

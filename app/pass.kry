@@ -1,4 +1,5 @@
 #import "kryon.h"
+#import "android_host.h"
 #import "app/nav"
 #import "app/profiles"
 #import "app/settings"
@@ -9,14 +10,16 @@ pass_status :: () -> char* #extern "pass_status"
 pass_copy :: () -> int #extern "pass_copy"
 pass_master_emoji :: (master: const char*) -> char* #extern "pass_master_emoji"
 pass_save_profile :: (name: const char*, site: const char*, login: const char*, length: int, counter: int, lower: int, upper: int, digits: int, symbols: int, exclude: const char*) -> int #extern "pass_save_profile"
-pass_safe_left :: () -> int #extern "pass_safe_left"
-pass_safe_top :: () -> int #extern "pass_safe_top"
-pass_safe_right :: () -> int #extern "pass_safe_right"
-pass_safe_bottom :: () -> int #extern "pass_safe_bottom"
-pass_can_unlock_master :: () -> int #extern "pass_can_unlock_master"
 pass_take_unlocked_master :: (out: char*) -> int #extern "pass_take_unlocked_master"
 pass_unlock_master :: () -> int #extern "pass_unlock_master"
 pass_load_settings :: (auto_copy: int*, clear_seconds: int*, show_fingerprint: int*, length: int*, counter: int*, lower: int*, upper: int*, digits: int*, symbols: int*, exclude: char*, exclude_size: int, theme_source: int*, theme_mode: int*, theme_id: int*, theme_style: int*) -> int #extern "pass_load_settings"
+AndroidHostLeftReserved :: () -> int #extern "AndroidHostLeftReserved"
+AndroidHostTopReserved :: () -> int #extern "AndroidHostTopReserved"
+AndroidHostRightReserved :: () -> int #extern "AndroidHostRightReserved"
+AndroidHostBottomReserved :: () -> int #extern "AndroidHostBottomReserved"
+AndroidSecureStoreBiometricAvailable :: () -> int #extern "AndroidSecureStoreBiometricAvailable"
+AndroidSecureStoreHasSecret :: (key: const char*) -> int #extern "AndroidSecureStoreHasSecret"
+AndroidSecureStoreSecretUsesBiometric :: (key: const char*) -> int #extern "AndroidSecureStoreSecretUsesBiometric"
 
 ViewMode :: enum {
     VIEW_GENERATE = 0,
@@ -113,6 +116,12 @@ pass_apply_theme :: () #private {
     SetThemeMode((ThemeMode)theme_mode)
     SetThemeStyle((ThemeStyle)theme_style)
     SetCurrentTheme(theme_id, dark)
+}
+
+pass_can_unlock_master :: () -> int #private {
+    return AndroidSecureStoreHasSecret("default") &&
+        AndroidSecureStoreSecretUsesBiometric("default") &&
+        AndroidSecureStoreBiometricAvailable()
 }
 
 pass_load_icons :: () #private {
@@ -315,21 +324,29 @@ pass_frame :: () #ui {
     pass_load_icons()
     Background(GetThemeBackground())
 
-    screen_w: int = GetScreenWidth()
-    screen_h: int = GetScreenHeight()
+    screen_w: int = GetFrameWidth()
+    screen_h: int = GetFrameHeight()
     pad: int = ScaleUIPx(18)
-    top: int = ScaleUIPx(16) + ScaleUIPx(pass_safe_top())
-    left: int = pad + ScaleUIPx(pass_safe_left())
-    right: int = pad + ScaleUIPx(pass_safe_right())
-    bottom: int = ScaleUIPx(pass_safe_bottom())
+    top: int = ScaleUIPx(16) + ScaleUIPx(AndroidHostTopReserved())
+    left: int = pad + ScaleUIPx(AndroidHostLeftReserved())
+    right: int = pad + ScaleUIPx(AndroidHostRightReserved())
+    bottom: int = ScaleUIPx(AndroidHostBottomReserved())
     content_w: int = screen_w - left - right
-    if content_w < ScaleUIPx(280) {
-        content_w = ScaleUIPx(280)
+    if content_w < ScaleUIPx(160) {
+        content_w = screen_w - left - right
+    }
+    if content_w < ScaleUIPx(96) {
+        left = ScaleUIPx(8) + ScaleUIPx(AndroidHostLeftReserved())
+        right = ScaleUIPx(8) + ScaleUIPx(AndroidHostRightReserved())
+        content_w = screen_w - left - right
+    }
+    if content_w < 1 {
+        content_w = 1
     }
 
     nav_h: int = ScaleUIPx(66)
     nav_y: int = screen_h - bottom - nav_h
-    scrollbar_x: int = screen_w - ScaleUIPx(pass_safe_right()) - ScaleUIPx(8)
+    scrollbar_x: int = screen_w - ScaleUIPx(AndroidHostRightReserved()) - ScaleUIPx(8)
     y: int = top
     view_h: int = nav_y - y
     if view_h < ScaleUIPx(180) {

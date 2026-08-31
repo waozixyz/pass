@@ -1,4 +1,4 @@
-pass derives strong, repeatable passwords on your device. The same site, login, master password, and settings always produce the same result, so there is no password database to back up, sync, or lose.
+Pass derives strong, repeatable passwords on your device. The same site, login, master password, and settings always produce the same result, so there is no password database to back up, sync, or lose.
 
 Everything is computed locally. The app makes no network requests, keeps no accounts, and tracks nothing.
 
@@ -9,7 +9,7 @@ Features:
 • Optional fingerprint unlock with the master password held in secure storage
 • No analytics, no tracking, no network access
 
-pass is an independent implementation of the LessPass algorithm. Compatibility does not imply endorsement by or affiliation with the LessPass project.
+Pass is an independent implementation of the LessPass algorithm. Compatibility does not imply endorsement by or affiliation with the LessPass project.
 
 Source code: https://github.com/waozixyz/pass
 Website: https://pass.waozi.xyz

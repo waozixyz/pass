@@ -1,6 +1,6 @@
 [Desktop Entry]
 Type=Application
-Name=pass
+Name=Pass
 Comment=Generate deterministic passwords locally
 Exec=pass-gui
 Icon=pass

@@ -41,15 +41,15 @@ nav_draw :: (x: int, y: int, width: int, height: int, view: int*) {
     }
 
     result := BottomNav((BottomNavProps){
-        .view_width = GetScreenWidth(),
-        .view_height = GetScreenHeight(),
+        .view_width = GetFrameWidth(),
+        .view_height = GetFrameHeight(),
         .count = 3,
         .items = items,
         .height = height,
         .icon_size = ScaleUIPx(22),
         .icon_padding = ScaleUIPx(8),
         .side_margin = x,
-        .bottom_margin = GetScreenHeight() - y - height,
+        .bottom_margin = GetFrameHeight() - y - height,
         .max_button_width = width / 3
     })
 

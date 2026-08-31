@@ -1,4 +1,4 @@
-.PHONY: all cli kry-c gui native run test native-test cli-test lesspass-compat-test check-submodule-urls kry-smoke web web-canvas site web-smoke android-debug android-smoke android-input-test e2e install install-cli uninstall-cli install-gui uninstall-gui package-deb package-appimage
+.PHONY: all cli kry-c gui native run test coverage native-test cli-test runtime-test lesspass-compat-test check-submodule-urls kry-smoke web web-canvas site web-smoke android-debug android-smoke android-input-test e2e install install-cli uninstall-cli install-gui uninstall-gui package-deb package-appimage
 
 BIN_DIR ?= $(HOME)/bin
 DATA_DIR ?= $(if $(XDG_DATA_HOME),$(XDG_DATA_HOME),$(HOME)/.local/share)
@@ -25,8 +25,8 @@ WEB_APP_EMBEDDED_ASSETS_C := build/web/pass_embedded_assets.c
 WEB_APP_ASSETS := vendor/kryon/fonts/noto/NotoSans-Regular.ttf assets/fonts/emoji.ttf
 KRYON_ICON_ASSETS_C := vendor/kryon/src/ui/ui_icon_assets.c
 KRYON_WEB_SRCS_ALL := $(filter-out $(KRYON_ICON_ASSETS_C),$(shell find vendor/kryon/src -type f -name '*.c' | LC_ALL=C sort)) $(KRYON_ICON_ASSETS_C)
-KRYON_WEB_SRCS := $(filter-out vendor/kryon/src/backend/libdraw_% vendor/kryon/src/backend/termi_% vendor/kryon/src/file_dialog/file_dialog.c vendor/kryon/src/ksync/% vendor/kryon/src/runtime_assets/% vendor/kryon/src/notification/% vendor/kryon/src/platform/plan9/% vendor/kryon/src/scene/physics_world.c vendor/kryon/src/scene/node_body2d.c vendor/kryon/src/scene/node_area2d.c vendor/kryon/src/scene/node_collision_shape2d.c,$(KRYON_WEB_SRCS_ALL))
-PASS_WEB_SRCS := droid/app/src/main/cpp/main.c droid/app/src/main/cpp/android_bridge.c native/pass_core.c native/pass_runtime.c $(KRY_C_APP_SRCS) $(WEB_APP_EMBEDDED_ASSETS_C)
+KRYON_WEB_SRCS := $(filter-out vendor/kryon/src/backend/dom_% vendor/kryon/src/backend/libdraw_% vendor/kryon/src/backend/termi_% vendor/kryon/src/file_dialog/file_dialog.c vendor/kryon/src/ksync/% vendor/kryon/src/runtime_assets/% vendor/kryon/src/notification/% vendor/kryon/src/platform/plan9/% vendor/kryon/src/scene/physics_world.c vendor/kryon/src/scene/node_body2d.c vendor/kryon/src/scene/node_area2d.c vendor/kryon/src/scene/node_collision_shape2d.c,$(KRYON_WEB_SRCS_ALL))
+PASS_WEB_SRCS := droid/app/src/main/cpp/main.c native/pass_core.c native/pass_runtime.c $(KRY_C_APP_SRCS) $(WEB_APP_EMBEDDED_ASSETS_C)
 WEB_CFLAGS := -Wall -Wextra -std=gnu99 -Os -DPLATFORM_WEB -DGRAPHICS_API_OPENGL_ES2 -D_DEFAULT_SOURCE -D_GNU_SOURCE -D_FILE_OFFSET_BITS=64 -DUI_EMBEDDED_ONLY=1 -DKRYON_WITH_PHYSICS=0 -Ivendor/kryon/include -Ivendor/kryon/src -I$(KRY_C_GENERATED_DIR) -Inative -Idroid/app/src/main/cpp
 WEB_LDFLAGS := -sASYNCIFY -sASYNCIFY_STACK_SIZE=1048576 -sFORCE_FILESYSTEM=1 -sFETCH=1 -sALLOW_MEMORY_GROWTH=1 -sINITIAL_MEMORY=134217728 -sSTACK_SIZE=16777216 -lidbfs.js -lm
 GUI_CFLAGS := -Wall -Wextra -std=gnu99 -O2 -D_DEFAULT_SOURCE -D_GNU_SOURCE -D_FILE_OFFSET_BITS=64 -DUI_EMBEDDED_ONLY=1 -DKRYON_WITH_PHYSICS=0 -Ivendor/kryon/include -Ivendor/kryon/src -I$(KRY_C_GENERATED_DIR) -Inative -Idroid/app/src/main/cpp $(shell pkg-config --cflags sdl2 gtk+-3.0 2>/dev/null)
@@ -60,10 +60,9 @@ $(KRY_C_STAMP): $(K2C) $(KRY_APP_SRCS) | build
 
 gui: build/pass-gui
 
-build/pass-gui: $(KRYON_BUILD_DIR)/libkryon.a $(KRY_C_STAMP) droid/app/src/main/cpp/main.c droid/app/src/main/cpp/android_bridge.c native/pass_core.c native/pass_runtime.c native/pass_runtime.h | build
+build/pass-gui: $(KRYON_BUILD_DIR)/libkryon.a $(KRY_C_STAMP) droid/app/src/main/cpp/main.c native/pass_core.c native/pass_runtime.c native/pass_runtime.h | build
 	$(CC) $(GUI_CFLAGS) -o $@ \
 		droid/app/src/main/cpp/main.c \
-		droid/app/src/main/cpp/android_bridge.c \
 		native/pass_core.c \
 		native/pass_runtime.c \
 		$(KRY_C_APP_SRCS) \
@@ -95,7 +94,25 @@ uninstall-gui:
 	rm -f $(BIN_DIR)/pass-gui $(DATA_DIR)/applications/xyz.waozi.pass.desktop $(DATA_DIR)/icons/hicolor/512x512/apps/pass.png
 
 test:
-	$(MAKE) native-test cli-test lesspass-compat-test kry-smoke
+	$(MAKE) native-test cli-test runtime-test lesspass-compat-test kry-smoke
+
+coverage:
+	mkdir -p build/coverage
+	rm -f build/coverage/*.gcda build/coverage/*.gcno build/coverage/*.gcov *.gcov
+	$(CC) --coverage -O0 -g -Wall -Wextra -std=gnu99 -Inative -c native/pass_core.c -o build/coverage/pass_core.o
+	$(CC) --coverage -O0 -g -Wall -Wextra -std=gnu99 -Inative -c native/pass_core_test.c -o build/coverage/pass_core_test.o
+	$(CC) --coverage build/coverage/pass_core.o build/coverage/pass_core_test.o -o build/coverage/pass_core_test
+	./build/coverage/pass_core_test
+	$(CC) --coverage -O0 -g -Wall -Wextra -std=gnu99 -Inative -DPASS_VERSION=\"$(PASS_VERSION)\" -c native/pass_cli.c -o build/coverage/pass_cli.o
+	$(CC) --coverage build/coverage/pass_cli.o build/coverage/pass_core.o -o build/coverage/pass_cli
+	sh scripts/cli_test.sh build/coverage/pass_cli
+	$(CC) --coverage -O0 -g -Wall -Wextra -std=gnu99 -Inative -Idroid/app/src/main/cpp -Ivendor/kryon/include -c native/pass_runtime.c -o build/coverage/pass_runtime.o
+	$(CC) --coverage -O0 -g -Wall -Wextra -std=gnu99 -Ivendor/kryon/include -c vendor/kryon/src/core/app_storage.c -o build/coverage/app_storage.o
+	$(CC) --coverage -O0 -g -Wall -Wextra -std=gnu99 -Inative -Idroid/app/src/main/cpp -Ivendor/kryon/include -c native/pass_runtime_test.c -o build/coverage/pass_runtime_test.o
+	$(CC) --coverage build/coverage/pass_runtime.o build/coverage/pass_runtime_test.o build/coverage/pass_core.o build/coverage/app_storage.o -o build/coverage/pass_runtime_test
+	./build/coverage/pass_runtime_test
+	for data in build/coverage/*.gcda; do gcov -b -c "$$data"; done
+	mv *.gcov build/coverage/
 
 # Checks the C generator used by the CLI and every Kry app target.
 native-test:
@@ -106,6 +123,12 @@ native-test:
 cli-test: cli
 	test "$$(./pass lesspass.com contact@lesspass.com password)" = '\g-A1-.OHEwrXjT#'
 	test "$$(./pass --length 20 --counter 2 service.test person@example.net master)" = 'j:x_Lo5b1XL_j0we%z`e'
+	sh scripts/cli_test.sh ./pass
+
+runtime-test:
+	mkdir -p build
+	$(CC) -Wall -Wextra -O2 -std=gnu99 -Inative -Idroid/app/src/main/cpp -Ivendor/kryon/include native/pass_runtime.c native/pass_core.c vendor/kryon/src/core/app_storage.c native/pass_runtime_test.c -o build/pass_runtime_test
+	./build/pass_runtime_test
 
 lesspass-compat-test: cli
 	python3 scripts/lesspass_compat_test.py --cli ./pass

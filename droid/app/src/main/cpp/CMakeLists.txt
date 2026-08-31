@@ -94,7 +94,6 @@ target_include_directories(raylib PUBLIC
 
 add_library(main SHARED
     main.c
-    android_bridge.c
     "${PASS_NATIVE_DIR}/pass_core.c"
     "${PASS_NATIVE_DIR}/pass_runtime.c"
     ${PASS_KRY_GENERATED_SOURCES}

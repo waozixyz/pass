@@ -8,11 +8,11 @@
   </a>
 </p>
 
-# pass
+# Pass
 
 Website and browser app: [pass.waozi.xyz](https://pass.waozi.xyz/)
 
-`pass` is a stateless password generator: the same site, login, master
+Pass is a stateless password generator: the same site, login, master
 password, and settings produce the same result without a password database.
 It is a new, independently written implementation of the LessPass generation
 algorithm. Compatibility does not imply endorsement by or affiliation with the

@@ -9,7 +9,7 @@
 #include "ui_scaling.h"
 #include "ui_text.h"
 
-#include "android_bridge.h"
+#include "android_host.h"
 #include "app/pass.h"
 #include "pass_runtime.h"
 
@@ -90,7 +90,7 @@ main(int argc, char **argv)
 
 #if ANDROID_BUILD
     __android_log_write(ANDROID_LOG_INFO, "PASS_MAIN", "main start");
-    android_bridge_init();
+    AndroidHostInit();
     if(chdir("/data/user/0/xyz.waozi.pass/files") != 0)
         TraceLog(LOG_WARNING, "PASS: failed to switch to files directory");
     window_width = 0;
@@ -108,42 +108,25 @@ main(int argc, char **argv)
     InitUIDPI();
     SetThemeStyle(THEME_STYLE_MATERIAL);
     SetCurrentTheme(GetDefaultThemeForThemeStyle(THEME_STYLE_MATERIAL), 0);
-    android_bridge_apply_system_theme();
+    AndroidHostApplySystemTheme();
     SetThemeMode(THEME_MODE_SYSTEM);
     SetThemeSource(THEME_SOURCE_SYSTEM);
     ApplyCurrentUITheme();
     setup_ui_font();
     setup_emoji_font();
     setup_shapes_texture();
-    SetTextInputPlatformCallback(android_bridge_set_soft_keyboard);
+    SetTextInputPlatformCallback(AndroidHostSetSoftKeyboardVisible);
     SetTargetFPS(60);
 
     pass_runtime_init();
     TraceLog(LOG_INFO, "PASS: app ready");
     while(!WindowShouldClose()) {
-        int width = GetScreenWidth();
-        int height = GetScreenHeight();
-        Vector2 scale = GetWindowScaleDPI();
-        float dpi = scale.x > 0.0f ? scale.x : 1.0f;
-
-#if ANDROID_BUILD
-        SyncAndroidSurfaceSize(&width, &height);
-#endif
-#if defined(PLATFORM_WEB)
-        SyncWebWindowSize();
-        width = GetScreenWidth();
-        height = GetScreenHeight();
-#endif
-
-        BeginDrawing();
-#if ANDROID_BUILD
-        SyncAndroidSurfaceSize(&width, &height);
-#endif
-        BeginUIFrame(width, height, dpi);
+        BeginFrame();
+        BeginUIFrame(GetFrameWidth(), GetFrameHeight(), GetFrameScale());
         pass_runtime_tick();
         pass_frame();
         EndUIFrame();
-        EndDrawing();
+        EndFrame();
     }
 
     pass_runtime_shutdown();
