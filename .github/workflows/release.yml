@@ -289,3 +289,92 @@ jobs:
           tag_name: ${{ steps.version.outputs.tag }}
           generate_release_notes: true
           files: build/artifacts/*
+
+  publish-itch:
+    name: Publish itch.io
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    continue-on-error: true
+    needs:
+      - web
+      - android
+      - gui
+      - publish
+    if: needs.publish.outputs.released == 'true'
+    env:
+      BUTLER_API_KEY: ${{ secrets.ITCH_API_KEY }}
+
+    steps:
+      - name: Check itch.io Secret
+        run: |
+          set -euo pipefail
+          if [ -z "${BUTLER_API_KEY:-}" ]; then
+            echo "ITCH_API_KEY secret is required to publish itch.io"
+            exit 1
+          fi
+
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Download Release Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: build/artifacts
+          merge-multiple: true
+
+      - name: Install Butler
+        timeout-minutes: 15
+        run: |
+          set -euo pipefail
+          curl -fsSL \
+            https://broth.itch.zone/butler/linux-amd64/LATEST/archive/default \
+            -o "$RUNNER_TEMP/butler.zip"
+          mkdir -p "$RUNNER_TEMP/butler"
+          unzip -q "$RUNNER_TEMP/butler.zip" -d "$RUNNER_TEMP/butler"
+          chmod +x "$RUNNER_TEMP/butler/butler"
+          echo "$RUNNER_TEMP/butler" >> "$GITHUB_PATH"
+
+      - name: Publish Release Builds to itch.io
+        run: |
+          set -euo pipefail
+          VERSION="$(sed -n '1p' VERSION)"
+
+          web_zip="build/artifacts/pass-web.zip"
+          android_apk="build/artifacts/pass-android.apk"
+          linux_appimage="build/artifacts/pass-$VERSION-x86_64.AppImage"
+
+          test -f "$web_zip"
+          test -f "$android_apk"
+          test -f "$linux_appimage"
+
+          mkdir -p build/itch/pass-web
+          unzip -q "$web_zip" -d build/itch/pass-web
+
+          butler_push() {
+            target="$1"
+            channel="$2"
+            attempt=1
+            log_file="$(mktemp)"
+
+            while [ "$attempt" -le 6 ]; do
+              if butler push "$target" "waozi/pass:$channel" --userversion "$VERSION" 2>&1 | tee "$log_file"; then
+                rm -f "$log_file"
+                return 0
+              fi
+              if ! grep -q "latest build is still processing" "$log_file"; then
+                rm -f "$log_file"
+                return 1
+              fi
+              echo "itch.io channel $channel is still processing; retrying in 60s ($attempt/6)"
+              sleep 60
+              attempt=$((attempt + 1))
+            done
+
+            rm -f "$log_file"
+            echo "itch.io channel $channel was still processing after retries"
+            return 1
+          }
+
+          butler_push build/itch/pass-web html5
+          butler_push "$android_apk" android
+          butler_push "$linux_appimage" linux
