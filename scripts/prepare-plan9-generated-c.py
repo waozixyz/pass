@@ -204,6 +204,24 @@ def brace_delta(line: str) -> int:
     return depth
 
 
+def expose_weak_declarations_for_plan9(text: str) -> str:
+    # The native cpp does not define __GNUC__, so the weak-declaration
+    # block would be compiled out and the lifecycle calls in
+    # kryon_project.c would have no prototypes for 8c.
+    return text.replace(
+        "#if defined(__GNUC__) || defined(__clang__)\n"
+        "void *CreateApp(const char *project_path) __attribute__((weak));\n"
+        "void DestroyApp(void *app) __attribute__((weak));\n"
+        "void ApplyRoute(void *app, const AppRouteInfo *route) __attribute__((weak));\n"
+        "void BeginScreenDraw(void *app, Rectangle viewport) __attribute__((weak));\n"
+        "#endif\n",
+        "void *CreateApp(const char *project_path) __attribute__((weak));\n"
+        "void DestroyApp(void *app) __attribute__((weak));\n"
+        "void ApplyRoute(void *app, const AppRouteInfo *route) __attribute__((weak));\n"
+        "void BeginScreenDraw(void *app, Rectangle viewport) __attribute__((weak));\n",
+    )
+
+
 def rewrite_for_declarations(text: str) -> tuple[str, int]:
     out: list[str] = []
     rewritten = 0
@@ -438,7 +456,7 @@ def prepare(root: Path, generated: Path, out_dir: Path, dump_dir: Path,
         rel = dst.relative_to(out_dir)
         src = generated / rel
         text = src.read_text(encoding="utf-8", errors="replace")
-        rewritten_text = text
+        rewritten_text = expose_weak_declarations_for_plan9(text)
         file_unresolved = 0
         if "__auto_type" in text:
             dump = dump_dir / (str(rel).replace(os.sep, "__") + ".original")
