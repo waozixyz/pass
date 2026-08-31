@@ -7,6 +7,7 @@
 
 #include "kryon.h"
 #include "embedded_assets.h"
+#include "app_runtime.h"
 #include "app/pass.h"
 #include "pass_runtime.h"
 
@@ -17,6 +18,32 @@
 
 static const char *const FONT_ASSET_PATH = "vendor/kryon/fonts/noto/NotoSans-Regular.ttf";
 static const char *const EMOJI_FONT_ASSET_PATH = "assets/fonts/emoji.ttf";
+
+/* The generated project host references the app lifecycle hooks weakly,
+ * and the native Plan 9 linker has no weak symbols; this entry point
+ * drives the loop itself, so the hooks stay inert. */
+void *CreateApp(const char *project_path)
+{
+    (void)project_path;
+    return NULL;
+}
+
+void DestroyApp(void *app)
+{
+    (void)app;
+}
+
+void ApplyRoute(void *app, const AppRouteInfo *route)
+{
+    (void)app;
+    (void)route;
+}
+
+void BeginScreenDraw(void *app, Rectangle viewport)
+{
+    (void)app;
+    (void)viewport;
+}
 
 static void
 setup_shapes_texture(void)
