@@ -1,4 +1,4 @@
-.PHONY: all cli kry-c gui native run test coverage native-test cli-test runtime-test lesspass-compat-test check-submodule-urls kry-smoke web web-canvas site web-smoke android-debug android-smoke android-input-test e2e install install-cli uninstall-cli install-gui uninstall-gui package-deb package-appimage
+.PHONY: all cli kry-c kry-c-plan9 gui native run test coverage native-test cli-test runtime-test lesspass-compat-test check-submodule-urls kry-smoke web web-canvas site web-smoke android-debug android-smoke android-input-test e2e install install-cli uninstall-cli install-gui uninstall-gui package-deb package-appimage
 
 BIN_DIR ?= $(HOME)/bin
 DATA_DIR ?= $(if $(XDG_DATA_HOME),$(XDG_DATA_HOME),$(HOME)/.local/share)
@@ -57,6 +57,23 @@ $(KRY_C_STAMP): $(K2C) $(KRY_APP_SRCS) | build
 	mkdir -p $(KRY_C_GENERATED_DIR)
 	$(K2C) --no-main --root . -o $(KRY_C_GENERATED_DIR) $(KRY_APP_SRCS)
 	touch $@
+
+PLAN9_DIR := build/plan9
+PLAN9_GENERATED := $(PLAN9_DIR)/generated
+PLAN9_FILE_LIST := $(PLAN9_DIR)/generated-c-files.txt
+PLAN9_EMBEDDED_ASSETS_C := $(PLAN9_DIR)/pass_embedded_assets.c
+PLAN9_ASSETS := vendor/kryon/fonts/noto/NotoSans-Regular.ttf assets/fonts/emoji.ttf
+
+# Native Plan 9 build inputs: k2c emits 8c-safe C directly, the embedded
+# table carries the two fonts, and the file list feeds the mkfile.
+kry-c-plan9: kry-c
+	rm -rf $(PLAN9_GENERATED)
+	$(K2C) --no-main --plan9 --root . \
+		--include-dir vendor/kryon/include --include-dir native \
+		--include-dir droid/app/src/main/cpp \
+		-o $(PLAN9_GENERATED) $(KRY_APP_SRCS)
+	find $(PLAN9_GENERATED) -type f -name '*.c' | LC_ALL=C sort > $(PLAN9_FILE_LIST)
+	sh vendor/kryon/scripts/embed-assets.sh $(PLAN9_EMBEDDED_ASSETS_C) $(PLAN9_ASSETS)
 
 gui: build/pass-gui
 
