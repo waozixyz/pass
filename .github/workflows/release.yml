@@ -197,11 +197,52 @@ jobs:
           echo "EM_CONFIG=$HOME/emsdk/.emscripten" >> "$GITHUB_ENV"
           echo "$HOME/emsdk/upstream/emscripten" >> "$GITHUB_PATH"
       - run: make site
-      - run: cd build/site && zip -qr ../pass-web.zip .
+      - name: Package web site and HTML5 app
+        run: |
+          set -euo pipefail
+          cd build/site
+          zip -qr ../pass-web.zip .
+
+          mkdir -p ../pass-html5
+          cp app/index.html ../pass-html5/
+          cp app/app.js ../pass-html5/
+          cp app/index.js ../pass-html5/
+          cp app/index.wasm ../pass-html5/
+          cp app/sw.js ../pass-html5/
+          cp manifest.webmanifest ../pass-html5/
+          cp -R icons ../pass-html5/icons
+          sed -i \
+            -e 's#href="/manifest.webmanifest"#href="manifest.webmanifest"#g' \
+            -e 's#href="/icons/#href="icons/#g' \
+            -e 's#src="/icons/#src="icons/#g' \
+            ../pass-html5/index.html
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          root = Path("../pass-html5")
+          manifest = json.loads((root / "manifest.webmanifest").read_text())
+          manifest["start_url"] = "."
+          manifest["scope"] = "."
+          for icon in manifest.get("icons", []):
+              icon["src"] = icon.get("src", "").lstrip("/")
+          (root / "manifest.webmanifest").write_text(json.dumps(manifest, indent=2) + "\n")
+
+          sw = (root / "sw.js").read_text()
+          sw = sw.replace(
+              "const appFiles = ['/app/', '/app/app.js', '/app/index.js', '/app/index.wasm', '/manifest.webmanifest', '/icons/icon-192.png', '/icons/icon-512.png'];",
+              "const appFiles = ['.', 'app.js', 'index.js', 'index.wasm', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png'];",
+          )
+          (root / "sw.js").write_text(sw)
+          PY
+          cd ../pass-html5
+          zip -qr ../pass-html5.zip .
       - uses: actions/upload-artifact@v4
         with:
           name: web
-          path: build/pass-web.zip
+          path: |
+            build/pass-web.zip
+            build/pass-html5.zip
           if-no-files-found: error
 
   publish:
@@ -339,16 +380,13 @@ jobs:
           set -euo pipefail
           VERSION="$(sed -n '1p' VERSION)"
 
-          web_zip="build/artifacts/pass-web.zip"
+          html5_zip="build/artifacts/pass-html5.zip"
           android_apk="build/artifacts/pass-android.apk"
           linux_appimage="build/artifacts/pass-$VERSION-x86_64.AppImage"
 
-          test -f "$web_zip"
+          test -f "$html5_zip"
           test -f "$android_apk"
           test -f "$linux_appimage"
-
-          mkdir -p build/itch/pass-web
-          unzip -q "$web_zip" -d build/itch/pass-web
 
           butler_push() {
             target="$1"
@@ -375,6 +413,6 @@ jobs:
             return 1
           }
 
-          butler_push build/itch/pass-web html5
+          butler_push "$html5_zip" html5
           butler_push "$android_apk" android
           butler_push "$linux_appimage" linux
