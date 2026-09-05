@@ -1,0 +1,2 @@
+- Keep bottom navigation, password controls, and dialog icons readable with dark tints in light mode and light tints in dark mode.
+- Prevent taps in Theme Settings from reaching fields underneath or opening the keyboard when saving the theme.

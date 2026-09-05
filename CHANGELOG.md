@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.9] - 2026-09-05
+
+- Keep bottom navigation, password controls, and dialog icons readable with
+  dark tints in light mode and light tints in dark mode.
+- Prevent taps in Theme Settings from reaching fields underneath or opening
+  the keyboard when saving the theme.
+
 ## [0.2.8] - 2026-08-26
 
 - Match LessPass clients for the same site, login, master password, counter,
