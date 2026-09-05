@@ -5,6 +5,11 @@ set(REPO_ROOT "${CMAKE_CURRENT_LIST_DIR}/../../../../..")
 set(KRYON_DIR "${REPO_ROOT}/vendor/kryon")
 set(KRY_GENERATED_DIR "${CMAKE_BINARY_DIR}/krygen/c")
 set(RAYLIB_DIR "${KRYON_DIR}/vendor/raylib/src")
+set(KRYON_RAYLIB_GENERATED_DIR "${CMAKE_BINARY_DIR}/kryon/raylib_generated")
+set(KRYON_COMPAT_GENERATED_HEADER "${KRYON_RAYLIB_GENERATED_DIR}/kryon_compat.generated.h")
+set(KRYON_RAYLIB_BACKEND_RENAME_HEADER "${KRYON_RAYLIB_GENERATED_DIR}/raylib_backend_rename.h")
+set(KRYON_RAYLIB_WRAPPERS_C "${KRYON_RAYLIB_GENERATED_DIR}/kryon_raylib_wrappers.c")
+set(KRYON_NULL_BACKEND_C "${KRYON_RAYLIB_GENERATED_DIR}/kryon_null_backend.c")
 set(PASS_NATIVE_DIR "${REPO_ROOT}/native")
 set(NATIVE_APP_GLUE_DIR "${ANDROID_NDK}/sources/android/native_app_glue")
 include("${KRYON_DIR}/cmake/KryonKrySources.cmake")
@@ -14,6 +19,15 @@ file(GLOB_RECURSE KRYON_SOURCES CONFIGURE_DEPENDS "${KRYON_DIR}/src/*.c")
 # no-raylib hosts; Android links real raylib, so compiling both is a
 # duplicate-symbol link error.
 list(FILTER KRYON_SOURCES EXCLUDE REGEX "${KRYON_DIR}/src/backend/.*")
+list(APPEND KRYON_SOURCES
+    "${KRYON_DIR}/src/backend/kry_event_wait.c"
+    "${KRYON_DIR}/src/backend/kry_image.c"
+    "${KRYON_DIR}/src/backend/kry_image_decode.c"
+    "${KRYON_DIR}/src/backend/kry_input.c"
+    "${KRYON_DIR}/src/backend/kry_instance.c"
+    "${KRYON_DIR}/src/backend/kry_screenshot.c"
+    "${KRYON_DIR}/src/backend/kry_sw_png.c"
+    "${KRYON_DIR}/src/backend/kry_surface_math.c")
 # pass uses no 2D physics; mirror the desktop Makefile's physics filter.
 list(REMOVE_ITEM KRYON_SOURCES
     "${KRYON_DIR}/src/scene/physics_world.c"
@@ -44,6 +58,30 @@ kryon_generate_kry_sources(PASS_KRY_GENERATED_SOURCES PASS_KRY_INCLUDE_DIR
     SOURCES ${PASS_KRY_SOURCES}
 )
 
+add_custom_command(
+    OUTPUT
+        "${KRYON_COMPAT_GENERATED_HEADER}"
+        "${KRYON_RAYLIB_BACKEND_RENAME_HEADER}"
+        "${KRYON_RAYLIB_WRAPPERS_C}"
+        "${KRYON_NULL_BACKEND_C}"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${KRYON_RAYLIB_GENERATED_DIR}"
+    COMMAND ${CMAKE_COMMAND} -E env KRYON_COMPAT_AUDIO=0
+        sh "${KRYON_DIR}/tools/generate-kryon-compat.sh"
+        "${RAYLIB_DIR}/raylib.h"
+        "${KRYON_COMPAT_GENERATED_HEADER}"
+        "${KRYON_RAYLIB_BACKEND_RENAME_HEADER}"
+        "${KRYON_RAYLIB_WRAPPERS_C}"
+        "${KRYON_NULL_BACKEND_C}"
+    DEPENDS "${KRYON_DIR}/tools/generate-kryon-compat.sh" "${RAYLIB_DIR}/raylib.h"
+    VERBATIM
+)
+add_custom_target(kryon_raylib_generated DEPENDS
+    "${KRYON_COMPAT_GENERATED_HEADER}"
+    "${KRYON_RAYLIB_BACKEND_RENAME_HEADER}"
+    "${KRYON_RAYLIB_WRAPPERS_C}"
+    "${KRYON_NULL_BACKEND_C}"
+)
+
 set(PASS_FONT_ASSET "vendor/kryon/fonts/noto/NotoSans-Regular.ttf")
 set(PASS_EMOJI_FONT_ASSET "assets/fonts/emoji.ttf")
 set(PASS_EMBEDDED_ASSETS_C "${CMAKE_BINARY_DIR}/pass_embedded_assets.c")
@@ -62,6 +100,7 @@ add_library(raylib STATIC
     "${RAYLIB_DIR}/rtext.c"
     "${RAYLIB_DIR}/raudio.c"
 )
+add_dependencies(raylib kryon_raylib_generated)
 
 target_compile_definitions(raylib PRIVATE
     PLATFORM_ANDROID
@@ -82,6 +121,7 @@ target_compile_definitions(raylib PRIVATE
 )
 
 target_compile_options(raylib PRIVATE
+    -include "${KRYON_RAYLIB_BACKEND_RENAME_HEADER}"
     -Os
     -ffunction-sections
     -fdata-sections
@@ -98,11 +138,11 @@ add_library(main SHARED
     "${PASS_NATIVE_DIR}/pass_runtime.c"
     ${PASS_KRY_GENERATED_SOURCES}
     "${PASS_EMBEDDED_ASSETS_C}"
-    "${KRYON_DIR}/src/backend/kry_sw_png.c"
     ${KRYON_SOURCES}
+    "${KRYON_RAYLIB_WRAPPERS_C}"
     "${NATIVE_APP_GLUE_DIR}/android_native_app_glue.c"
 )
-add_dependencies(main pass_kry_generated)
+add_dependencies(main pass_kry_generated kryon_raylib_generated)
 
 target_include_directories(main PRIVATE
     "${KRYON_DIR}/include"

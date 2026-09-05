@@ -125,8 +125,9 @@ coverage:
 	sh scripts/cli_test.sh build/coverage/pass_cli
 	$(CC) --coverage -O0 -g -Wall -Wextra -std=gnu99 -Inative -Idroid/app/src/main/cpp -Ivendor/kryon/include -c native/pass_runtime.c -o build/coverage/pass_runtime.o
 	$(CC) --coverage -O0 -g -Wall -Wextra -std=gnu99 -Ivendor/kryon/include -c vendor/kryon/src/core/app_storage.c -o build/coverage/app_storage.o
+	$(CC) --coverage -O0 -g -Wall -Wextra -std=gnu99 -Ivendor/kryon/include -c vendor/kryon/src/kry_std/kry_filesystem.c -o build/coverage/kry_filesystem.o
 	$(CC) --coverage -O0 -g -Wall -Wextra -std=gnu99 -Inative -Idroid/app/src/main/cpp -Ivendor/kryon/include -c native/pass_runtime_test.c -o build/coverage/pass_runtime_test.o
-	$(CC) --coverage build/coverage/pass_runtime.o build/coverage/pass_runtime_test.o build/coverage/pass_core.o build/coverage/app_storage.o -o build/coverage/pass_runtime_test
+	$(CC) --coverage build/coverage/pass_runtime.o build/coverage/pass_runtime_test.o build/coverage/pass_core.o build/coverage/app_storage.o build/coverage/kry_filesystem.o -o build/coverage/pass_runtime_test
 	./build/coverage/pass_runtime_test
 	for data in build/coverage/*.gcda; do gcov -b -c "$$data"; done
 	mv *.gcov build/coverage/
@@ -144,7 +145,7 @@ cli-test: cli
 
 runtime-test:
 	mkdir -p build
-	$(CC) -Wall -Wextra -O2 -std=gnu99 -Inative -Idroid/app/src/main/cpp -Ivendor/kryon/include native/pass_runtime.c native/pass_core.c vendor/kryon/src/core/app_storage.c native/pass_runtime_test.c -o build/pass_runtime_test
+	$(CC) -Wall -Wextra -O2 -std=gnu99 -Inative -Idroid/app/src/main/cpp -Ivendor/kryon/include native/pass_runtime.c native/pass_core.c vendor/kryon/src/core/app_storage.c vendor/kryon/src/kry_std/kry_filesystem.c native/pass_runtime_test.c -o build/pass_runtime_test
 	./build/pass_runtime_test
 
 lesspass-compat-test: cli

@@ -24,6 +24,11 @@ public final class TextInputBridgeHarnessActivity extends Activity {
             }
 
             @Override
+            public void composition(int phase, String text, int cursor,
+                                    int selectionLength) {
+            }
+
+            @Override
             public void backspace() {
                 backspaceCount++;
             }

@@ -91,6 +91,7 @@ main(int argc, char **argv)
 #if ANDROID_BUILD
     __android_log_write(ANDROID_LOG_INFO, "PASS_MAIN", "main start");
     AndroidHostInit();
+    SetAndroidViewportPolicy(AndroidViewportPolicyFull());
     if(chdir("/data/user/0/xyz.waozi.pass/files") != 0)
         TraceLog(LOG_WARNING, "PASS: failed to switch to files directory");
     window_width = 0;
