@@ -50,7 +50,8 @@ nav_draw :: (x: int, y: int, width: int, height: int, view: int*) {
         .icon_padding = ScaleUIPx(8),
         .side_margin = x,
         .bottom_margin = GetFrameHeight() - y - height,
-        .max_button_width = width / 3
+        .max_button_width = width / 3,
+        .icon_color = GetThemeText()
     })
 
     if result.clicked_route >= 0 {

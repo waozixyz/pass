@@ -241,7 +241,7 @@ pass_draw_generate :: (pad: int, y: int, content_w: int) -> int #private {
     }
     pass_request_focused_input_visible(103, (Rectangle){pad, y, content_w, ScaleUIPx(62)})
     if show_unlock == 1 {
-        if IconButton((IconButtonProps){.bounds = {unlock_x, y + ScaleUIPx(22), action_size, ScaleUIPx(38)}, .icon = pass_fingerprint_icon, .icon_size = ScaleUIPx(22), .icon_padding = ScaleUIPx(8), .focus_id = 14, .background = GetThemeButton(), .hover_background = GetThemeButtonHover(), .icon_color = WHITE, .border = Fade(GetThemeIcon(), 0.35f), .radius = 0.10f}) {
+        if IconButton((IconButtonProps){.bounds = {unlock_x, y + ScaleUIPx(22), action_size, ScaleUIPx(38)}, .icon = pass_fingerprint_icon, .icon_size = ScaleUIPx(22), .icon_padding = ScaleUIPx(8), .focus_id = 14, .background = GetThemeButton(), .hover_background = GetThemeButtonHover(), .icon_color = GetThemeText(), .border = Fade(GetThemeIcon(), 0.35f), .radius = 0.10f}) {
             ClearUIFocus()
             SetUIFocusTextInputActive(0)
             pass_unlock_master()
@@ -251,7 +251,7 @@ pass_draw_generate :: (pad: int, y: int, content_w: int) -> int #private {
     if reveal_master == 1 {
         reveal_icon = pass_eye_off_icon
     }
-    if IconButton((IconButtonProps){.bounds = {reveal_x, y + ScaleUIPx(22), action_size, ScaleUIPx(38)}, .icon = reveal_icon, .icon_size = ScaleUIPx(22), .icon_padding = ScaleUIPx(8), .focus_id = 13, .background = GetThemeButton(), .hover_background = GetThemeButtonHover(), .icon_color = WHITE, .border = Fade(GetThemeIcon(), 0.35f), .radius = 0.10f}) {
+    if IconButton((IconButtonProps){.bounds = {reveal_x, y + ScaleUIPx(22), action_size, ScaleUIPx(38)}, .icon = reveal_icon, .icon_size = ScaleUIPx(22), .icon_padding = ScaleUIPx(8), .focus_id = 13, .background = GetThemeButton(), .hover_background = GetThemeButtonHover(), .icon_color = GetThemeText(), .border = Fade(GetThemeIcon(), 0.35f), .radius = 0.10f}) {
         reveal_master = 1 - reveal_master
     }
     y += ScaleUIPx(64)
@@ -343,6 +343,8 @@ pass_frame :: () #ui {
     if content_w < 1 {
         content_w = 1
     }
+
+    settings_capture_theme_input()
 
     nav_h: int = ScaleUIPx(66)
     nav_y: int = screen_h - bottom - nav_h

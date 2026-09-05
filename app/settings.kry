@@ -115,7 +115,7 @@ settings_draw :: (
     if *reveal_master == 1 {
         reveal_icon = settings_eye_off_icon
     }
-    if IconButton((IconButtonProps){.bounds = {x + width - action_size, y + ScaleUIPx(22), action_size, ScaleUIPx(38)}, .icon = reveal_icon, .icon_size = ScaleUIPx(22), .icon_padding = ScaleUIPx(8), .focus_id = 531, .background = GetThemeButton(), .hover_background = GetThemeButtonHover(), .icon_color = WHITE, .border = Fade(GetThemeIcon(), 0.35f), .radius = 0.10f}) {
+    if IconButton((IconButtonProps){.bounds = {x + width - action_size, y + ScaleUIPx(22), action_size, ScaleUIPx(38)}, .icon = reveal_icon, .icon_size = ScaleUIPx(22), .icon_padding = ScaleUIPx(8), .focus_id = 531, .background = GetThemeButton(), .hover_background = GetThemeButtonHover(), .icon_color = GetThemeText(), .border = Fade(GetThemeIcon(), 0.35f), .radius = 0.10f}) {
         *reveal_master = 1 - *reveal_master
     }
     y += ScaleUIPx(64)
@@ -134,6 +134,9 @@ settings_draw :: (
     y += ScaleUIPx(60)
 
     if Button((ButtonProps){.bounds = {x, y, width, ScaleUIPx(42)}, .label = "Theme Settings", .style = ButtonStyleSecondary, .font = Text16, .id = 500}) {
+        ClearUIFocus()
+        SetUIFocusTextInputActive(0)
+        UIConsumeRelease()
         settings_theme_modal_open = 1
     }
 
@@ -197,6 +200,9 @@ settings_draw_theme_modal :: (
     modal_h: int = ScaleUIPx(380)
     frame := ModalFrame(modal_w, modal_h, "Theme Settings", empty_icon, settings_close_icon)
     if frame.right_clicked == 1 {
+        ClearUIFocus()
+        SetUIFocusTextInputActive(0)
+        UIConsumeRelease()
         settings_theme_modal_open = 0
     }
 
@@ -221,6 +227,16 @@ settings_draw_theme_modal :: (
     save_y: int = frame.content_y + frame.content_h - ScaleUIPx(44)
     if Button((ButtonProps){.bounds = {frame.content_x, save_y, frame.content_w, ScaleUIPx(40)}, .label = "Save Theme", .style = ButtonStylePrimary, .font = Text16, .id = 511}) {
         pass_save_settings(*auto_copy, *clear_seconds, *show_fingerprint, *length, *counter, *lower, *upper, *digits, *symbols, exclude, *theme_source, *theme_mode, *theme_id, *theme_style)
+        ClearUIFocus()
+        SetUIFocusTextInputActive(0)
+        UIConsumeRelease()
         settings_theme_modal_open = 0
+    }
+}
+
+// Block the underlying form before drawing the modal's interactive controls.
+settings_capture_theme_input :: () {
+    if settings_theme_modal_open == 1 {
+        PushUIInputCapture((Rectangle){0, 0, GetFrameWidth(), GetFrameHeight()}, 0)
     }
 }
