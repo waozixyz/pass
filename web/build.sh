@@ -15,6 +15,8 @@ if [ -z "$version" ]; then
 fi
 sed "s/\${version}/$version/g" "$root_dir/web/site/index.html" > "$out_dir/index.html"
 cp "$root_dir/web/site/styles.css" "$out_dir/styles.css"
+cp -R "$root_dir/web/site/assets" "$out_dir/assets"
+cp -R "$root_dir/web/site/images" "$out_dir/images"
 cp "$root_dir/web/site/app/index.html" "$out_dir/app/index.html"
 cp "$root_dir/web/site/app/app.js" "$out_dir/app/app.js"
 cp "$root_dir/web/site/CNAME" "$out_dir/CNAME"

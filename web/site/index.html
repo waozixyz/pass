@@ -3,46 +3,61 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Pass — deterministic passwords</title>
-  <meta name="description" content="Generate deterministic passwords locally with the BSD-licensed Pass CLI, desktop app, or browser app.">
+  <title>Pass — Your passwords. No vault.</title>
+  <meta name="description" content="A stateless password generator. Recreate your passwords from the same details, entirely on your device. Free, open source, and available for web, Android, and desktop.">
   <link rel="canonical" href="https://pass.waozi.xyz/">
-  <meta name="theme-color" content="#f7ede2">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://pass.waozi.xyz/">
+  <meta property="og:site_name" content="Pass">
+  <meta property="og:title" content="Pass — Your passwords. No vault.">
+  <meta property="og:description" content="A stateless password generator. The same details. The same password. Generated on your device.">
+  <meta property="og:image" content="https://pass.waozi.xyz/images/social.png">
+  <meta property="og:image:width" content="1536">
+  <meta property="og:image:height" content="1024">
+  <meta property="og:image:alt" content="Pass. Your passwords. No vault. Ink mountains beneath a terracotta sun.">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Pass — Your passwords. No vault.">
+  <meta name="twitter:description" content="A stateless password generator. Generated on your device.">
+  <meta name="twitter:image" content="https://pass.waozi.xyz/images/social.png">
+  <meta name="theme-color" content="#f7f3eb">
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png">
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
+  <a class="skip-link" href="#main-content">Skip to content</a>
   <header class="site-header">
-    <div class="site-header-inner">
-      <a class="site-return" href="https://waozi.xyz" aria-label="Return to waozi.xyz">← waozi</a>
-      <a class="brand" href="/">
-        <img src="/icons/icon-192.png" alt="">
-        <span>PASS</span>
-      </a>
-      <nav class="header-nav" aria-label="Primary">
-        <a href="#downloads">Download</a>
-        <a href="#features">Features</a>
-        <a href="#privacy">Privacy</a>
-      </nav>
-    </div>
+    <a class="site-return" href="https://waozi.xyz/#apps">← Waozi</a>
+    <a class="brand" href="/" aria-label="Pass home"><span class="pass-mark" aria-hidden="true"></span>Pass</a>
+    <nav class="site-nav" aria-label="Main navigation"><a href="#how-it-works">How it works</a><a href="#downloads">Download</a><a href="https://inbe.waozi.xyz">Inbe ↗</a></nav>
   </header>
-  <main id="main-content">
-    <section class="hero" aria-label="Pass introduction">
+  <main class="container" id="main-content">
+    <section class="hero" aria-labelledby="hero-title">
       <div class="hero-copy">
-        <span class="eyebrow"><span class="dot"></span>Stateless &middot; local &middot; open source</span>
-        <img class="hero-icon" src="/icons/icon-192.png" alt="Pass">
-        <h1>Pass</h1>
-        <p class="lede">Deterministic passwords generated locally from one master password, with no vault, account, tracking, or backend service.</p>
-        <p class="version">${version}</p>
-        <div class="actions">
-          <a class="button primary" href="#downloads">Download</a>
-          <a class="button" href="/app/">Open web app</a>
-          <a class="button" href="https://waozi.itch.io/pass" target="_blank" rel="noopener">itch.io</a>
-        </div>
+        <p class="eyebrow">Small by design. Yours by nature.</p>
+        <h1 id="hero-title">Your passwords.<br>No vault.</h1>
+        <p class="hero-lede">A stateless password generator.<br>The same details. The same password. Every time.</p>
+        <div class="actions"><a class="button button-primary" href="/app/">Open app <span aria-hidden="true">→</span></a><a class="button" href="#downloads">Download</a></div>
+        <div class="platforms"><a class="source" href="https://github.com/waozixyz/pass">Open source ↗</a><span>Web</span><span>Android</span><span>Desktop &amp; CLI</span></div>
+        <p class="small-note">Free to use · Generated on your device</p>
       </div>
+      <figure class="hero-art"><img src="/images/mountain.webp" width="1536" height="1024" alt="Fine ink-drawn mountain peaks beneath a terracotta sun" fetchpriority="high"><figcaption>Same details.<br>Same password.<br>Anytime.</figcaption></figure>
     </section>
-    <section class="downloads-section" id="downloads" aria-labelledby="downloads-title">
+    <section class="generator-intro" aria-labelledby="generator-title">
+      <div class="generator-example">
+        <div class="example-heading"><h2 id="generator-title">A familiar starting point.</h2><span>Illustrative example</span></div>
+        <dl class="example-fields"><div><dt>Site</dt><dd>example.com</dd></div><div><dt>Login</dt><dd>you@example.com</dd></div><div><dt>Master password</dt><dd><span aria-label="Masked master password">••••••••••••</span></dd></div></dl>
+        <a class="button button-primary" href="/app/">Open the generator <span aria-hidden="true">→</span></a>
+        <p class="example-note">Your master password is entered only in the app.</p>
+      </div>
+      <div class="generator-aside"><p class="eyebrow">Remember one. Recreate the rest.</p><h2>Less to store.<br>More to keep.</h2><p>Pass combines your site, login, master password, and settings to generate a password locally. Use exactly the same details later to get the same result.</p><p>No password vault to synchronize. No account needed to begin.</p><a class="text-link" href="#how-it-works">See how it works ↓</a></div>
+    </section>
+    <section class="how-it-works section" id="how-it-works" aria-labelledby="how-title">
+      <div class="section-heading"><p class="eyebrow">Simple, and repeatable</p><h2 id="how-title">How it works.</h2></div>
+      <div class="three-columns"><article><p class="number">01</p><h3>Enter your details</h3><p>Choose the site and login, enter your master password, and set the length, character types, and counter.</p></article><article><p class="number">02</p><h3>Generate locally</h3><p>Pass derives your password on your device. Copy it into the service you are signing in to.</p></article><article><p class="number">03</p><h3>Recreate anytime</h3><p>The same inputs and settings produce the same password. Keep them consistent across your devices.</p></article></div>
+    </section>
+    <section class="downloads-section section" id="downloads" aria-labelledby="downloads-title">
       <div class="section-heading">
         <p class="section-eyebrow"><span class="dot"></span>Download</p>
         <h2 id="downloads-title">Choose your Pass build.</h2>
@@ -94,7 +109,7 @@
           <div class="download-platform-icon"><img src="/icons/wasm.png" alt=""></div>
           <div class="download-platform-body">
             <h3>Web app</h3>
-            <p>The Pass app compiled to WebAssembly with Kryon's canvas backend. Runs entirely in your tab.</p>
+            <p>Open Pass in your browser. Passwords are generated entirely on your device.</p>
             <nav class="download-pills" aria-label="Web app links">
               <a class="is-primary" href="/app/">Open web app</a>
               <a href="https://waozi.itch.io/pass" target="_blank" rel="noopener">itch.io</a>
@@ -103,22 +118,19 @@
         </article>
       </div>
     </section>
-    <section class="features-section" id="features">
-      <p class="section-eyebrow"><span class="dot"></span>Features</p>
-      <h2>Small by design.</h2>
-      <div class="features-grid">
-        <div class="feature-item"><h3>Deterministic</h3><p>Generate the same password from the same site, login, master password, and settings.</p></div>
-        <div class="feature-item"><h3>Local-first</h3><p>No password database, no sync account, no analytics, and no network service required for generation.</p></div>
-        <div class="feature-item"><h3>Portable</h3><p>Use the same generator across Android, desktop, terminal, and web builds.</p></div>
-        <div class="feature-item"><h3>Open source</h3><p>Source and releases remain available under BSD-3-Clause.</p></div>
-      </div>
+
+    <section class="features-section section" id="features" aria-labelledby="features-title">
+      <div class="section-heading"><p class="eyebrow">Only what you need</p><h2 id="features-title">A smaller kind of tool.</h2></div>
+      <div class="features-grid"><article><h3>Stateless</h3><p>Your passwords are derived from your details, rather than kept in a password vault.</p></article><article><h3>Local</h3><p>Generation runs on your device. No remote service is needed to calculate a password.</p></article><article><h3>Portable</h3><p>Use the same generator on Android, desktop, in your browser, or from a terminal.</p></article><article><h3>Open source</h3><p>Read the code, follow releases, and make it your own. Available under the BSD 3-Clause license.</p></article></div>
     </section>
-    <section class="privacy-section" id="privacy">
-      <p class="section-eyebrow"><span class="dot"></span>Privacy</p>
-      <h2>Your master password stays yours.</h2>
-      <p>The desktop and browser apps derive passwords locally. The website has no analytics, accounts, cookies, or backend API.</p>
+    <section class="privacy-section section" id="privacy" aria-labelledby="privacy-title"><div><p class="eyebrow">Built around your privacy</p><h2 id="privacy-title">Your master password<br>stays yours.</h2></div><div><p>The browser and desktop apps derive passwords locally. The website has no analytics, accounts, or backend API. The Android app does not request Internet permission.</p><a class="text-link" href="https://github.com/waozixyz/pass">Read the source →</a></div></section>
+    <section class="questions section" aria-labelledby="questions-title"><div class="section-heading"><p class="eyebrow">A few things to know</p><h2 id="questions-title">Before you begin.</h2></div>
+      <details><summary>Is Pass a password manager?</summary><p>Pass is a stateless generator. It recreates a password from your inputs instead of storing a vault of passwords. App profiles can help you remember site settings; they are separate from password generation.</p></details>
+      <details><summary>What must I remember?</summary><p>Your master password and the exact site, login, and generation settings. A change to any input changes the output. There is no master-password reset service.</p></details>
+      <details><summary>How do I change a generated password?</summary><p>Increase the counter in the app, then change the password at the service too. Keep the new counter with your other site settings so you can recreate that password later.</p></details>
+      <details><summary>Does this work with LessPass?</summary><p>Pass is an independent implementation of the LessPass generation algorithm. Matching inputs and compatible settings produce the same result. Pass is not affiliated with or endorsed by the LessPass project.</p></details>
     </section>
   </main>
-  <footer><span>© 2026 <a href="https://waozi.xyz">Waozi</a></span></footer>
+  <footer class="site-footer container"><div class="footer-top"><p class="footer-quote">Simple tools for a more private life.</p><p class="footer-about">Pass<br>Same details.<br>Same password.</p></div><nav class="footer-links" aria-label="More information"><a href="https://waozi.xyz">Made by Waozi</a><a href="https://github.com/waozixyz/pass">Source</a><a href="https://github.com/waozixyz/pass/releases">Releases</a><a href="#privacy">Privacy</a><a href="https://waozi.itch.io/pass">itch.io</a><a href="https://inbe.waozi.xyz">Discover Inner Breeze ↗</a></nav><div class="footer-bottom"><span>© Waozi</span><span>Version ${version} · Made with care.</span></div></footer>
 </body>
 </html>
