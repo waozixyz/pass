@@ -91,6 +91,26 @@ Answer :: () -> s32 {
     invalid.digits = true
     invalid.exclude = "0123456789"
     if PassGenerate("", "", "", invalid).valid { return 14 }
+
+    emoji: [64]u8
+    emoji_length := MasterEmoji(
+        "correct horse battery staple", emoji[:])
+    if !TextMatches(TextView(emoji[0:emoji_length]),
+        "🐰🎨🐮🍑") { return 15 }
+
+    empty_emoji: [64]u8
+    empty_emoji_length := MasterEmoji("", empty_emoji[:])
+    if empty_emoji_length != 16 ||
+    !TextMatches(TextView(empty_emoji[0:empty_emoji_length]),
+        "🍔🔥🐰🐭") { return 16 }
+
+    tiny_emoji: [2]u8
+    tiny_emoji[0] = cast(u8)120
+    tiny_emoji_length := MasterEmoji(
+        "correct horse battery staple", tiny_emoji[:])
+    if tiny_emoji_length != 0 || tiny_emoji[0] != cast(u8)0 {
+        return 17
+    }
     return 42
 }
 
@@ -103,6 +123,16 @@ PortableAnswer :: () -> s32 {
     return 42
 }
 
+
+TextMatches :: (actual: string, expected: string) -> bool {
+    if actual.count != expected.count { return false }
+    index: s32 = 0
+    while index < cast(s32)actual.count {
+        if actual[index] != expected[index] { return false }
+        index += 1
+    }
+    return true
+}
 
 PassTextMatches :: (result: PassResult, expected: string) -> bool {
     if !result.valid || result.length != cast(s32)expected.count {
