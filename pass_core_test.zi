@@ -42,6 +42,55 @@ Answer :: () -> s32 {
     0xa8, 0x48, 0x11, 0xea, 0xe8, 0x50, 0x15, 0x0b
     ]
     if !DigestMatches(truncated_salt, truncated_salt_expected) { return 5 }
+
+    defaults := DefaultPassOptions()
+    generated := PassGenerate(
+        "example.com", "alice", "correct horse battery staple", defaults)
+    if !PassTextMatches(generated, "&Lf4'/-cSk4DPv_8") { return 6 }
+
+    excluded := defaults
+    excluded.length = 24
+    excluded.exclude = "0Ool1I!|"
+    generated = PassGenerate(
+        "example.com", "alice", "correct horse battery staple", excluded)
+    if !PassTextMatches(
+        generated, "7,.Cp}YnF'eeHHaqbX7#PQhg") { return 7 }
+
+    subset: PassOptions
+    subset.length = 12
+    subset.counter = 7
+    subset.lowercase = true
+    subset.digits = true
+    subset.exclude = ""
+    generated = PassGenerate(
+        "δοκιμή.example", "ユーザー", "pässword", subset)
+    if !PassTextMatches(generated, "oih5omhygh2v") { return 8 }
+
+    empty_subset: PassOptions
+    empty_subset.length = 5
+    empty_subset.uppercase = true
+    empty_subset.digits = true
+    generated = PassGenerate("x", "y", "", empty_subset)
+    if !PassTextMatches(generated, "C9O9I") { return 9 }
+
+    lesspass := PassGenerate(
+        "lesspass.com", "contact@lesspass.com", "password", defaults)
+    if !PassTextMatches(lesspass, "\\g-A1-.OHEwrXjT#") { return 10 }
+
+    counters := defaults
+    counters.counter = 10
+    generated = PassGenerate("site", "login", "test", counters)
+    if !PassTextMatches(generated, "XFt0F*,r619:+}[.") { return 11 }
+    counters.counter = 16
+    generated = PassGenerate("site", "login", "test", counters)
+    if !PassTextMatches(generated, "l:`nzj>S7+0#uL_d") { return 12 }
+
+    empty_inputs := PassGenerate("", "", "", defaults)
+    if !PassTextMatches(empty_inputs, "bb8^CBroRNj%4sP_") { return 13 }
+    invalid := defaults
+    invalid.digits = true
+    invalid.exclude = "0123456789"
+    if PassGenerate("", "", "", invalid).valid { return 14 }
     return 42
 }
 
@@ -52,4 +101,29 @@ PortableAnswer :: () -> s32 {
         return 1
     }
     return 42
+}
+
+
+PassTextMatches :: (result: PassResult, expected: string) -> bool {
+    if !result.valid || result.length != cast(s32)expected.count {
+        return false
+    }
+    index: s32 = 0
+    while index < result.length {
+        if result.password[index] != expected[index] { return false }
+        index += 1
+    }
+    return true
+}
+
+DefaultPassOptions :: () -> PassOptions {
+    options: PassOptions
+    options.length = 16
+    options.counter = 1
+    options.lowercase = true
+    options.uppercase = true
+    options.digits = true
+    options.symbols = true
+    options.exclude = ""
+    return options
 }

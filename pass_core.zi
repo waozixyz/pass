@@ -5,6 +5,32 @@ Sha256State :: struct {
     buffer_length: s32
 }
 
+PassOptions :: struct {
+    length: s32
+    counter: u64
+    lowercase: bool
+    uppercase: bool
+    digits: bool
+    symbols: bool
+    exclude: string
+}
+
+PassClass :: struct {
+    bytes: [32]u8
+    count: s32
+}
+
+PassResult :: struct {
+    valid: bool
+    password: [36]u8
+    length: s32
+    error: string
+}
+
+EntropyState :: struct {
+    bytes: [32]u8
+}
+
 sha256_round_constants: [64]u32 = .[
 0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b,
 0x59f111f1, 0x923f82a4, 0xab1c5ed5, 0xd807aa98, 0x12835b01,
@@ -224,4 +250,204 @@ DeriveKey :: (password: string, salt: string) -> [32]u8 {
         for index: 0..31 { output[index] ^= previous[index] }
     }
     return output
+}
+
+
+PassClassEmptyError :: (class_index: s32) -> string {
+    if class_index == 0 {
+        return "enabled lowercase character class is empty after exclusions"
+    }
+    if class_index == 1 {
+        return "enabled uppercase character class is empty after exclusions"
+    }
+    if class_index == 2 {
+        return "enabled digits character class is empty after exclusions"
+    }
+    return "enabled symbols character class is empty after exclusions"
+}
+
+PassFailure :: (message: string) -> PassResult {
+    result: PassResult
+    result.error = message
+    return result
+}
+
+PassFilterClass :: (characters: string, options: PassOptions) -> PassClass {
+    result: PassClass
+    character_index: s32 = 0
+    while character_index < cast(s32)characters.count {
+        excluded := false
+        exclude_index: s32 = 0
+        while exclude_index < cast(s32)options.exclude.count {
+            if options.exclude[exclude_index] == characters[character_index] {
+                excluded = true
+                break
+            }
+            exclude_index += 1
+        }
+        if !excluded && result.count < cast(s32)result.bytes.count {
+            result.bytes[result.count] = characters[character_index]
+            result.count += 1
+        }
+        character_index += 1
+    }
+    return result
+}
+
+PassAppendCounter :: (salt: []u8, offset: s32, counter: u64) -> s32 {
+    digits: [16]u8
+    digit_count: s32 = 0
+    value := counter
+    while value > cast(u64)0 {
+        nibble: u64 = value % cast(u64)16
+        if nibble < cast(u64)10 {
+            digits[digit_count] = cast(u8)(nibble + cast(u64)48)
+        } else {
+            digits[digit_count] = cast(u8)(nibble + cast(u64)87)
+        }
+        digit_count += 1
+        value /= cast(u64)16
+    }
+    if digit_count == 0 {
+        salt[offset] = cast(u8)48
+        return offset + 1
+    }
+    digit_index: s32 = digit_count - 1
+    while digit_index >= 0 {
+        salt[offset + (digit_count - digit_index - 1)] = digits[digit_index]
+        digit_index -= 1
+    }
+    return offset + digit_count
+}
+
+EntropyTake :: (entropy: *EntropyState, divisor: s32) -> s32 {
+    carry: u32 = 0
+    index: s32 = 0
+    while index < 32 {
+        current: u32 = carry * cast(u32)256 +
+        cast(u32)entropy.bytes[index]
+        entropy.bytes[index] = cast(u8)(current / cast(u32)divisor)
+        carry = current % cast(u32)divisor
+        index += 1
+    }
+    return cast(s32)carry
+}
+
+PassGenerate :: (site: string, login: string, master: string,
+    options: PassOptions) -> PassResult {
+    if options.length < 5 || options.length > 35 {
+        return PassFailure(
+            "password length must be between 5 and 35")
+    }
+
+    class_sets: [4]string = .[
+    "abcdefghijklmnopqrstuvwxyz", "ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+    "0123456789", "!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~"
+    ]
+    class_names: [4]string = .[
+    "lowercase", "uppercase", "digits", "symbols"
+    ]
+    class_enabled: [4]bool = .[
+    options.lowercase, options.uppercase,
+    options.digits, options.symbols
+    ]
+    classes: [4]PassClass
+    class_count: s32 = 0
+    alphabet: [128]u8
+    alphabet_count: s32 = 0
+    class_index: s32 = 0
+    while class_index < 4 {
+        if class_enabled[class_index] {
+            classes[class_count] = PassFilterClass(
+                class_sets[class_index], options)
+            if classes[class_count].count == 0 {
+                return PassFailure(PassClassEmptyError(class_index))
+            }
+            copy_index: s32 = 0
+            while copy_index < classes[class_count].count {
+                alphabet[alphabet_count] =
+                classes[class_count].bytes[copy_index]
+                alphabet_count += 1
+                copy_index += 1
+            }
+            class_count += 1
+        }
+        class_index += 1
+    }
+    if class_count == 0 {
+        return PassFailure("at least one character class must be enabled")
+    }
+    if options.length < class_count {
+        return PassFailure(
+            "password length is smaller than the enabled character classes")
+    }
+    if options.length == class_count {
+        return PassFailure(
+            "password length must leave room for generated characters")
+    }
+
+    salt: [640]u8
+    salt_length: s32 = 0
+    if cast(s32)site.count >= cast(s32)salt.count {
+        return PassFailure("site name is too long")
+    }
+    site_index: s32 = 0
+    while site_index < cast(s32)site.count {
+        salt[salt_length] = site[site_index]
+        salt_length += 1
+        site_index += 1
+    }
+    if salt_length + cast(s32)login.count >= cast(s32)salt.count {
+        return PassFailure("login is too long")
+    }
+    login_index: s32 = 0
+    while login_index < cast(s32)login.count {
+        salt[salt_length] = login[login_index]
+        salt_length += 1
+        login_index += 1
+    }
+    salt_length = PassAppendCounter(salt[:], salt_length, options.counter)
+
+    entropy: EntropyState
+    entropy.bytes = DeriveKey(master, TextView(salt[0:salt_length]))
+
+    password_length := options.length - class_count
+    password: [36]u8
+    generated_index: s32 = 0
+    while generated_index < password_length {
+        password[generated_index] = alphabet[EntropyTake(
+            *entropy, alphabet_count)]
+        generated_index += 1
+    }
+
+    required: [4]u8
+    required_index: s32 = 0
+    while required_index < class_count {
+        required[required_index] = classes[required_index].bytes[EntropyTake(
+            *entropy, classes[required_index].count)]
+        required_index += 1
+    }
+
+    insertion_index: s32 = 0
+    while insertion_index < class_count {
+        position := EntropyTake(*entropy, password_length)
+        move_index := password_length
+        while move_index > position {
+            password[move_index] = password[move_index - 1]
+            move_index -= 1
+        }
+        password[position] = required[insertion_index]
+        password_length += 1
+        insertion_index += 1
+    }
+
+    result: PassResult
+    result.valid = true
+    result.length = password_length
+    result_index: s32 = 0
+    while result_index < password_length {
+        result.password[result_index] = password[result_index]
+        result_index += 1
+    }
+    return result
 }
