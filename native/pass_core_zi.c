@@ -1,6 +1,8 @@
 #include <pass_core.h>
 
+#ifndef ZIR_PLAN9_RUNTIME_H
 #include <string.h>
+#endif
 
 typedef struct {
     int length;
