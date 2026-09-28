@@ -1,4 +1,4 @@
-.PHONY: all cli kry-c kry-c-plan9 gui native run test coverage native-test cli-test runtime-test lesspass-compat-test check-submodule-urls kry-smoke ziran-core-test web web-canvas site web-smoke android-debug android-smoke android-input-test e2e install install-cli uninstall-cli install-gui uninstall-gui package-deb package-appimage
+.PHONY: all cli kry-c kry-c-plan9 gui native run test coverage native-test cli-test runtime-test lesspass-compat-test check-submodule-urls kry-smoke ziran-core-test ziran-compat-test web web-canvas site web-smoke android-debug android-smoke android-input-test e2e install install-cli uninstall-cli install-gui uninstall-gui package-deb package-appimage
 
 BIN_DIR ?= $(HOME)/bin
 DATA_DIR ?= $(if $(XDG_DATA_HOME),$(XDG_DATA_HOME),$(HOME)/.local/share)
@@ -148,6 +148,14 @@ native-test:
 
 ziran-core-test:
 	sh scripts/ziran_core_test.sh "$(ZIRAN_BIN)"
+
+ziran-compat-test: $(ZIGEN_DIR)/pass_core.c
+	mkdir -p build
+	$(CC) -Wall -Wextra -O2 -std=gnu99 $(ZIGEN_CFLAGS) \
+		-I$(ZIGEN_DIR) -I$(ZIRAN_INCLUDE) -Inative \
+		native/pass_core_zi.c $(ZIGEN_DIR)/pass_core.c \
+		native/pass_core_test.c -o build/pass_core_zi_test
+	./build/pass_core_zi_test
 
 cli-test: cli
 	test "$$(./pass lesspass.com contact@lesspass.com password)" = '\g-A1-.OHEwrXjT#'

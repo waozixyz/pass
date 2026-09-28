@@ -83,7 +83,9 @@ The app has one UI implementation:
 
 ```text
 app/*.kry -> k2c -> generated C -> desktop / Android / web
-native/pass_core.c -> password derivation
+pass_core.zi -> Ziran password core
+native/pass_core_zi.c -> compatibility adapter for existing C runtimes
+native/pass_core.c -> legacy C equivalence oracle
 native/pass_runtime.c -> app-facing runtime externs
 native/pass_cli.c -> command-line frontend
 ```
