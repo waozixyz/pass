@@ -1,4 +1,4 @@
-.PHONY: all cli kry-c kry-c-plan9 gui native run test coverage native-test cli-test runtime-test lesspass-compat-test check-submodule-urls kry-smoke web web-canvas site web-smoke android-debug android-smoke android-input-test e2e install install-cli uninstall-cli install-gui uninstall-gui package-deb package-appimage
+.PHONY: all cli kry-c kry-c-plan9 gui native run test coverage native-test cli-test runtime-test lesspass-compat-test check-submodule-urls kry-smoke ziran-core-test web web-canvas site web-smoke android-debug android-smoke android-input-test e2e install install-cli uninstall-cli install-gui uninstall-gui package-deb package-appimage
 
 BIN_DIR ?= $(HOME)/bin
 DATA_DIR ?= $(if $(XDG_DATA_HOME),$(XDG_DATA_HOME),$(HOME)/.local/share)
@@ -13,6 +13,7 @@ KRY_C_GENERATED_DIR := build/krygen/c
 KRY_C_STAMP := $(KRY_C_GENERATED_DIR)/.stamp
 KRY_C_APP_SRCS := $(KRY_C_GENERATED_DIR)/app/nav.c $(KRY_C_GENERATED_DIR)/app/pass.c $(KRY_C_GENERATED_DIR)/app/profiles.c $(KRY_C_GENERATED_DIR)/app/settings.c
 K2C := $(KRYON_BUILD_DIR)/bin/k2c
+ZIRAN_BIN ?= ../ziran/build/bin/ziran
 PASS_VERSION := $(shell sed -n '1p' VERSION)
 WEB_EMSDK_BIN ?= $(HOME)/emsdk/upstream/emscripten
 WEB_CC ?= $(if $(wildcard $(WEB_EMSDK_BIN)/emcc),$(WEB_EMSDK_BIN)/emcc,emcc)
@@ -137,6 +138,9 @@ native-test:
 	mkdir -p build
 	cc -Wall -Wextra -O2 -Inative native/pass_core.c native/pass_core_test.c -o build/pass_core_test
 	./build/pass_core_test
+
+ziran-core-test:
+	sh scripts/ziran_core_test.sh "$(ZIRAN_BIN)"
 
 cli-test: cli
 	test "$$(./pass lesspass.com contact@lesspass.com password)" = '\g-A1-.OHEwrXjT#'

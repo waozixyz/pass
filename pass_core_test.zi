@@ -1,0 +1,10 @@
+#import "pass_core"
+
+#program_export
+Answer :: () -> s32 {
+    empty := Sha256("")
+    abc := Sha256("abc")
+    if empty[0] != cast(u8)0xe3 || empty[31] != cast(u8)0x55 { return 1 }
+    if abc[0] != cast(u8)0xba || abc[31] != cast(u8)0xad { return 2 }
+    return 42
+}
