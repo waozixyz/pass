@@ -9,6 +9,11 @@ if [ -f .gitmodules ]; then
     exit 1
 fi
 
+if [ -d vendor ]; then
+    echo "::error file=vendor::Legacy vendored dependencies must be declared in ziran.toml" >&2
+    exit 1
+fi
+
 bad=$(grep -nE '^[[:space:]]*git[[:space:]]*=' ziran.toml \
     | grep -vE '^[0-9]+:[[:space:]]*git[[:space:]]*=[[:space:]]*"https://' || true)
 if [ -n "$bad" ]; then
