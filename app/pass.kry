@@ -1,8 +1,15 @@
 #import "kryon.h"
 #import "android_host.h"
+#import "pass_runtime.h"
+#import "ui/ui_scroll_internal.h"
 #import "app/nav"
 #import "app/profiles"
 #import "app/settings"
+#import "app/common"
+
+PASS_THEME_STYLE_SYSTEM :: 0
+PASS_THEME_STYLE_RETRO :: 1
+PASS_THEME_STYLE_MATERIAL :: 2
 
 pass_generate :: (site: const char*, login: const char*, master: const char*, length: int, counter: int, lower: int, upper: int, digits: int, symbols: int, exclude: const char*) -> int #extern "pass_generate"
 pass_generated :: () -> char* #extern "pass_generated"
@@ -13,6 +20,8 @@ pass_save_profile :: (name: const char*, site: const char*, login: const char*, 
 pass_take_unlocked_master :: (out: char*) -> int #extern "pass_take_unlocked_master"
 pass_unlock_master :: () -> int #extern "pass_unlock_master"
 pass_load_settings :: (auto_copy: int*, clear_seconds: int*, show_fingerprint: int*, length: int*, counter: int*, lower: int*, upper: int*, digits: int*, symbols: int*, exclude: char*, exclude_size: int, theme_source: int*, theme_mode: int*, theme_id: int*, theme_style: int*) -> int #extern "pass_load_settings"
+pass_get_style_pack :: (out: char*, out_size: int) -> int #extern "pass_get_style_pack"
+pass_set_style_pack :: (style_pack: const char*) -> int #extern "pass_set_style_pack"
 AndroidHostLeftReserved :: () -> int #extern "AndroidHostLeftReserved"
 AndroidHostTopReserved :: () -> int #extern "AndroidHostTopReserved"
 AndroidHostRightReserved :: () -> int #extern "AndroidHostRightReserved"
@@ -55,14 +64,9 @@ state {
     theme_source: int = THEME_SOURCE_APP
     theme_mode: int = THEME_MODE_SYSTEM
     theme_id: int = THEME_SWEET
-    theme_style: int = THEME_STYLE_MATERIAL
-    theme_menu_state: UIThemeSettingsState
+    theme_style: int = PASS_THEME_STYLE_MATERIAL
 
-    pass_icons_loaded: int = 0
     pass_settings_loaded: int = 0
-    pass_fingerprint_icon: Texture2D
-    pass_eye_icon: Texture2D
-    pass_eye_off_icon: Texture2D
     generate_scroll: int = 0
     profiles_scroll: int = 0
     settings_scroll: int = 0
@@ -90,11 +94,11 @@ pass_apply_theme :: () #private {
     if theme_mode > THEME_MODE_DARK {
         theme_mode = THEME_MODE_DARK
     }
-    if theme_style < THEME_STYLE_SYSTEM {
-        theme_style = THEME_STYLE_SYSTEM
+    if theme_style < PASS_THEME_STYLE_SYSTEM {
+        theme_style = PASS_THEME_STYLE_SYSTEM
     }
-    if theme_style > THEME_STYLE_MATERIAL {
-        theme_style = THEME_STYLE_MATERIAL
+    if theme_style > PASS_THEME_STYLE_MATERIAL {
+        theme_style = PASS_THEME_STYLE_MATERIAL
     }
     if theme_id < 0 {
         theme_id = 0
@@ -114,7 +118,12 @@ pass_apply_theme :: () #private {
 
     SetThemeSource((ThemeSource)theme_source)
     SetThemeMode((ThemeMode)theme_mode)
-    SetThemeStyle((ThemeStyle)theme_style)
+    style_pack: [PASS_STYLE_PACK_SIZE] char = ""
+    pass_get_style_pack(style_pack, sizeof(style_pack))
+    EnsureBuiltInStylePacks()
+    if !SetActiveStylePack(style_pack) {
+        SetActiveStylePack("material")
+    }
     SetCurrentTheme(theme_id, dark)
 }
 
@@ -122,17 +131,6 @@ pass_can_unlock_master :: () -> int #private {
     return AndroidSecureStoreHasSecret("default") &&
         AndroidSecureStoreSecretUsesBiometric("default") &&
         AndroidSecureStoreBiometricAvailable()
-}
-
-pass_load_icons :: () #private {
-    if pass_icons_loaded == 1 {
-        return
-    }
-
-    pass_fingerprint_icon = LoadUIIconTexture(UI_ICON_TYPE_FINGERPRINT)
-    pass_eye_icon = LoadUIIconTexture(UI_ICON_TYPE_EYE)
-    pass_eye_off_icon = LoadUIIconTexture(UI_ICON_TYPE_EYE_OFF)
-    pass_icons_loaded = 1
 }
 
 pass_load_saved_settings :: () #private {
@@ -145,7 +143,7 @@ pass_load_saved_settings :: () #private {
 }
 
 pass_generate_content_height :: () -> int #private {
-    return ScaleUIPx(820)
+    return Scale(820)
 }
 
 pass_draw_master_emoji :: (x: int, y: int, master_text: [1024] char, enabled: int) -> int #private {
@@ -156,30 +154,30 @@ pass_draw_master_emoji :: (x: int, y: int, master_text: [1024] char, enabled: in
         return 0
     }
 
-    font_token: int = PushUIFont("pass-emoji")
-    Text(pass_master_emoji(master_text), x, y, Text20, GetThemeIcon())
-    PopUIFont(font_token)
-    return ScaleUIPx(32)
+    font_token: int = PushTextFont("pass-emoji")
+    pass_text(pass_master_emoji(master_text), x, y, Text20)
+    PopTextFont(font_token)
+    return Scale(32)
 }
 
 pass_draw_generated_output :: (x: int, y: int, width: int) #private {
-    bounds := (Rectangle){x, y, width, ScaleUIPx(54)}
-    inner := (Rectangle){x + ScaleUIPx(14), y + ScaleUIPx(9), width - ScaleUIPx(28), ScaleUIPx(36)}
+    bounds := (Rectangle){x, y, width, Scale(54)}
+    inner := (Rectangle){x + Scale(14), y + Scale(9), width - Scale(28), Scale(36)}
     output: char* = pass_generated()
     border: Color = Fade(GetThemeIcon(), 0.30f)
     fill: Color = GetThemeSurface()
 
     DrawRectangleRounded(bounds, 0.12f, 10, fill)
-    DrawRectangleRoundedLinesEx(bounds, 0.12f, 10, ScaleUIPx(1), border)
+    DrawRectangleRoundedLinesEx(bounds, 0.12f, 10, Scale(1), border)
     if output[0] == 0 {
-        TextInRect("Password will appear here", inner, Text16, Fade(GetThemeText(), 0.54f))
+        Text((TextProps){.bounds = inner, .text = "Password will appear here", .font = Text16, .wrap = TextWrapNone, .align = TextAlignCenter, .vertical_align = TextAlignCenter, .disabled = 1})
     } else {
-        TextInRect(output, inner, Text16, GetThemeText())
+        Text((TextProps){.bounds = inner, .text = output, .font = Text16, .wrap = TextWrapNone, .align = TextAlignCenter, .vertical_align = TextAlignCenter})
     }
 }
 
 pass_request_focused_input_visible :: (focus_id: int, bounds: Rectangle) #private {
-    if IsUIFocusActive(focus_id) == 0 {
+    if IsFocusActive(focus_id) == 0 {
         if pass_visible_focus_id == focus_id {
             pass_visible_focus_id = 0
         }
@@ -198,119 +196,119 @@ pass_request_rect_visible :: (bounds: Rectangle) #private {
     pass_focused_rect_valid = 1
 }
 
-pass_ensure_focused_input_visible :: (area: UIScrollArea) #private {
+pass_ensure_focused_input_visible :: (area: ScrollArea) #private {
     if pass_focused_rect_valid == 0 {
         return
     }
 
-    EnsureUIScrollRectVisible(area, pass_focused_rect, ScaleUIPx(24))
+    EnsureScrollRectVisible(area, pass_focused_rect, Scale(24))
     pass_focused_rect_valid = 0
 }
 
 pass_draw_generate :: (pad: int, y: int, content_w: int) -> int #private {
-    Text("Site", pad, y, Text14, GetThemeText())
-    TextField((TextFieldProps){.bounds = {pad, y + ScaleUIPx(22), content_w, ScaleUIPx(38)}, .text = site, .text_size = sizeof(site), .cursor_position = &site_cursor, .max_codepoints = 255, .font = Text16, .focus_id = 101})
-    pass_request_focused_input_visible(101, (Rectangle){pad, y, content_w, ScaleUIPx(62)})
-    y += ScaleUIPx(72)
+    pass_text("Site", pad, y, Text14)
+    TextField((TextFieldProps){.bounds = {pad, y + Scale(22), content_w, Scale(38)}, .text = site, .text_size = sizeof(site), .cursor_position = &site_cursor, .max_codepoints = 255, .focus_id = 101})
+    pass_request_focused_input_visible(101, (Rectangle){pad, y, content_w, Scale(62)})
+    y += Scale(72)
 
-    Text("Login", pad, y, Text14, GetThemeText())
-    TextField((TextFieldProps){.bounds = {pad, y + ScaleUIPx(22), content_w, ScaleUIPx(38)}, .text = login, .text_size = sizeof(login), .cursor_position = &login_cursor, .max_codepoints = 255, .font = Text16, .focus_id = 102})
-    pass_request_focused_input_visible(102, (Rectangle){pad, y, content_w, ScaleUIPx(62)})
-    y += ScaleUIPx(72)
+    pass_text("Login", pad, y, Text14)
+    TextField((TextFieldProps){.bounds = {pad, y + Scale(22), content_w, Scale(38)}, .text = login, .text_size = sizeof(login), .cursor_position = &login_cursor, .max_codepoints = 255, .focus_id = 102})
+    pass_request_focused_input_visible(102, (Rectangle){pad, y, content_w, Scale(62)})
+    y += Scale(72)
 
-    Text("Master password", pad, y, Text14, GetThemeText())
+    pass_text("Master password", pad, y, Text14)
     show_unlock: int = 0
     if show_fingerprint == 1 && pass_can_unlock_master() == 1 {
         show_unlock = 1
     }
-    action_size: int = ScaleUIPx(42)
-    action_gap: int = ScaleUIPx(8)
+    action_size: int = Scale(42)
+    action_gap: int = Scale(8)
     reveal_x: int = pad + content_w - action_size
     unlock_x: int = reveal_x - action_gap - action_size
     master_field_w: int = content_w - action_size - action_gap
     if show_unlock == 1 {
         master_field_w = content_w - action_size * 2 - action_gap * 2
     }
-    if master_field_w < ScaleUIPx(120) {
-        master_field_w = ScaleUIPx(120)
+    if master_field_w < Scale(120) {
+        master_field_w = Scale(120)
     }
     if reveal_master == 0 {
-        TextField((TextFieldProps){.bounds = {pad, y + ScaleUIPx(22), master_field_w, ScaleUIPx(38)}, .text = master, .text_size = sizeof(master), .cursor_position = &master_cursor, .max_codepoints = 1023, .font = Text16, .focus_id = 103, .secure = 1})
+        TextField((TextFieldProps){.bounds = {pad, y + Scale(22), master_field_w, Scale(38)}, .text = master, .text_size = sizeof(master), .cursor_position = &master_cursor, .max_codepoints = 1023, .focus_id = 103, .secure = 1})
     } else {
-        TextField((TextFieldProps){.bounds = {pad, y + ScaleUIPx(22), master_field_w, ScaleUIPx(38)}, .text = master, .text_size = sizeof(master), .cursor_position = &master_cursor, .max_codepoints = 1023, .font = Text16, .focus_id = 103, .secure = 0})
+        TextField((TextFieldProps){.bounds = {pad, y + Scale(22), master_field_w, Scale(38)}, .text = master, .text_size = sizeof(master), .cursor_position = &master_cursor, .max_codepoints = 1023, .focus_id = 103, .secure = 0})
     }
-    pass_request_focused_input_visible(103, (Rectangle){pad, y, content_w, ScaleUIPx(62)})
+    pass_request_focused_input_visible(103, (Rectangle){pad, y, content_w, Scale(62)})
     if show_unlock == 1 {
-        if IconButton((IconButtonProps){.bounds = {unlock_x, y + ScaleUIPx(22), action_size, ScaleUIPx(38)}, .icon = pass_fingerprint_icon, .icon_size = ScaleUIPx(22), .icon_padding = ScaleUIPx(8), .focus_id = 14, .background = GetThemeButton(), .hover_background = GetThemeButtonHover(), .icon_color = GetThemeText(), .border = Fade(GetThemeIcon(), 0.35f), .radius = 0.10f}) {
-            ClearUIFocus()
-            SetUIFocusTextInputActive(0)
+        if Button((ButtonProps){.bounds = {unlock_x, y + Scale(22), action_size, Scale(38)}, .label = "Unlock master password", .tone = ButtonToneNeutral, .emphasis = ButtonEmphasisSoft, .icon_type = ICON_FINGERPRINT, .icon_only = 1, .id = 14}) {
+            ClearFocus()
+            SetFocusTextInputActive(0)
             pass_unlock_master()
         }
     }
-    reveal_icon: Texture2D = pass_eye_icon
+    reveal_icon: int = ICON_EYE
     if reveal_master == 1 {
-        reveal_icon = pass_eye_off_icon
+        reveal_icon = ICON_EYE_OFF
     }
-    if IconButton((IconButtonProps){.bounds = {reveal_x, y + ScaleUIPx(22), action_size, ScaleUIPx(38)}, .icon = reveal_icon, .icon_size = ScaleUIPx(22), .icon_padding = ScaleUIPx(8), .focus_id = 13, .background = GetThemeButton(), .hover_background = GetThemeButtonHover(), .icon_color = GetThemeText(), .border = Fade(GetThemeIcon(), 0.35f), .radius = 0.10f}) {
+    if Button((ButtonProps){.bounds = {reveal_x, y + Scale(22), action_size, Scale(38)}, .label = "Reveal master password", .tone = ButtonToneNeutral, .emphasis = ButtonEmphasisSoft, .icon_type = reveal_icon, .icon_only = 1, .id = 13}) {
         reveal_master = 1 - reveal_master
     }
-    y += ScaleUIPx(64)
+    y += Scale(64)
     y += pass_draw_master_emoji(pad, y, master, show_fingerprint)
-    y += ScaleUIPx(12)
+    y += Scale(12)
 
-    Text("Length", pad, y + ScaleUIPx(10), Text16, GetThemeText())
-    Spinbox((SpinboxProps){.bounds = {pad + content_w - ScaleUIPx(156), y, ScaleUIPx(156), ScaleUIPx(40)}, .id = 20, .min = 5, .max = 35, .step = 1, .value = &length, .disabled = 0, .wrap = 0})
-    y += ScaleUIPx(54)
+    pass_text("Length", pad, y + Scale(10), Text16)
+    Spinbox((SpinboxProps){.bounds = {pad + content_w - Scale(156), y, Scale(156), Scale(40)}, .id = 20, .min = 5, .max = 35, .step = 1, .value = &length, .disabled = 0, .wrap = 0})
+    y += Scale(54)
 
-    Text("Counter", pad, y + ScaleUIPx(10), Text16, GetThemeText())
-    Spinbox((SpinboxProps){.bounds = {pad + content_w - ScaleUIPx(156), y, ScaleUIPx(156), ScaleUIPx(40)}, .id = 21, .min = 1, .max = 999999, .step = 1, .value = &counter, .disabled = 0, .wrap = 0})
-    y += ScaleUIPx(58)
+    pass_text("Counter", pad, y + Scale(10), Text16)
+    Spinbox((SpinboxProps){.bounds = {pad + content_w - Scale(156), y, Scale(156), Scale(40)}, .id = 21, .min = 1, .max = 999999, .step = 1, .value = &counter, .disabled = 0, .wrap = 0})
+    y += Scale(58)
 
-    Checkbox(31, pad, y, "a-z", &lower)
-    Checkbox(32, pad + content_w / 4, y, "A-Z", &upper)
-    Checkbox(33, pad + content_w / 2, y, "0-9", &digits)
-    Checkbox(34, pad + (content_w / 4) * 3, y, "#", &symbols)
-    y += ScaleUIPx(72)
+    Checkbox((CheckboxProps){.bounds = {pad, y, content_w / 4, Scale(34)}, .id = 31, .label = "a-z", .value = &lower})
+    Checkbox((CheckboxProps){.bounds = {pad + content_w / 4, y, content_w / 4, Scale(34)}, .id = 32, .label = "A-Z", .value = &upper})
+    Checkbox((CheckboxProps){.bounds = {pad + content_w / 2, y, content_w / 4, Scale(34)}, .id = 33, .label = "0-9", .value = &digits})
+    Checkbox((CheckboxProps){.bounds = {pad + (content_w / 4) * 3, y, content_w / 4, Scale(34)}, .id = 34, .label = "#", .value = &symbols})
+    y += Scale(72)
 
-    Text("Exclude", pad, y, Text14, GetThemeText())
-    TextField((TextFieldProps){.bounds = {pad, y + ScaleUIPx(22), content_w, ScaleUIPx(38)}, .text = exclude, .text_size = sizeof(exclude), .cursor_position = &exclude_cursor, .max_codepoints = 127, .font = Text16, .focus_id = 104})
-    pass_request_focused_input_visible(104, (Rectangle){pad, y, content_w, ScaleUIPx(62)})
-    y += ScaleUIPx(76)
+    pass_text("Exclude", pad, y, Text14)
+    TextField((TextFieldProps){.bounds = {pad, y + Scale(22), content_w, Scale(38)}, .text = exclude, .text_size = sizeof(exclude), .cursor_position = &exclude_cursor, .max_codepoints = 127, .focus_id = 104})
+    pass_request_focused_input_visible(104, (Rectangle){pad, y, content_w, Scale(62)})
+    y += Scale(76)
 
-    if Button((ButtonProps){.bounds = {pad, y, content_w, ScaleUIPx(44)}, .label = "Generate", .style = ButtonStylePrimary, .font = Text16, .id = 40}) {
+    if Button((ButtonProps){.bounds = {pad, y, content_w, Scale(44)}, .label = "Generate", .tone = ButtonToneAccent, .emphasis = ButtonEmphasisFilled, .id = 40}) {
         pass_generate(site, login, master, length, counter, lower, upper, digits, symbols, exclude)
         pass_scroll_to_generated = 1
         if auto_copy == 1 {
             pass_copy()
         }
     }
-    y += ScaleUIPx(60)
+    y += Scale(60)
 
-    Text("Generated password", pad, y, Text14, GetThemeText())
-    pass_draw_generated_output(pad, y + ScaleUIPx(22), content_w)
+    pass_text("Generated password", pad, y, Text14)
+    pass_draw_generated_output(pad, y + Scale(22), content_w)
     if pass_scroll_to_generated == 1 {
-        pass_request_rect_visible((Rectangle){pad, y, content_w, ScaleUIPx(82)})
+        pass_request_rect_visible((Rectangle){pad, y, content_w, Scale(82)})
         pass_scroll_to_generated = 0
     }
-    y += ScaleUIPx(88)
+    y += Scale(88)
 
-    if Button((ButtonProps){.bounds = {pad, y, content_w, ScaleUIPx(40)}, .label = "Copy", .style = ButtonStyleSecondary, .font = Text16, .id = 41}) {
+    if Button((ButtonProps){.bounds = {pad, y, content_w, Scale(40)}, .label = "Copy", .tone = ButtonToneNeutral, .emphasis = ButtonEmphasisSoft, .id = 41}) {
         pass_copy()
     }
 
-    return y + ScaleUIPx(54)
+    return y + Scale(54)
 }
 
 pass_draw_profiles :: (pad: int, y: int, content_w: int) -> int #private {
-    Text("Profile name", pad, y, Text14, GetThemeText())
-    TextField((TextFieldProps){.bounds = {pad, y + ScaleUIPx(22), content_w, ScaleUIPx(38)}, .text = profile_name, .text_size = sizeof(profile_name), .cursor_position = &profile_name_cursor, .max_codepoints = 63, .font = Text16, .focus_id = 201})
-    pass_request_focused_input_visible(201, (Rectangle){pad, y, content_w, ScaleUIPx(62)})
-    y += ScaleUIPx(76)
+    pass_text("Profile name", pad, y, Text14)
+    TextField((TextFieldProps){.bounds = {pad, y + Scale(22), content_w, Scale(38)}, .text = profile_name, .text_size = sizeof(profile_name), .cursor_position = &profile_name_cursor, .max_codepoints = 63, .focus_id = 201})
+    pass_request_focused_input_visible(201, (Rectangle){pad, y, content_w, Scale(62)})
+    y += Scale(76)
 
-    if Button((ButtonProps){.bounds = {pad, y, content_w, ScaleUIPx(42)}, .label = "Save Current Profile", .style = ButtonStylePrimary, .font = Text16, .id = 210}) {
+    if Button((ButtonProps){.bounds = {pad, y, content_w, Scale(42)}, .label = "Save Current Profile", .tone = ButtonToneAccent, .emphasis = ButtonEmphasisFilled, .id = 210}) {
         pass_save_profile(profile_name, site, login, length, counter, lower, upper, digits, symbols, exclude)
     }
-    y += ScaleUIPx(58)
+    y += Scale(58)
 
     return profiles_draw_list(pad, y, content_w, master)
 }
@@ -321,23 +319,22 @@ pass_frame :: () #ui {
     }
     pass_load_saved_settings()
     pass_apply_theme()
-    pass_load_icons()
     Background(GetThemeBackground())
 
     screen_w: int = GetFrameWidth()
     screen_h: int = GetFrameHeight()
-    pad: int = ScaleUIPx(18)
-    top: int = ScaleUIPx(16) + ScaleUIPx(AndroidHostTopReserved())
-    left: int = pad + ScaleUIPx(AndroidHostLeftReserved())
-    right: int = pad + ScaleUIPx(AndroidHostRightReserved())
-    bottom: int = ScaleUIPx(AndroidHostBottomReserved())
+    pad: int = Scale(18)
+    top: int = Scale(16) + Scale(AndroidHostTopReserved())
+    left: int = pad + Scale(AndroidHostLeftReserved())
+    right: int = pad + Scale(AndroidHostRightReserved())
+    bottom: int = Scale(AndroidHostBottomReserved())
     content_w: int = screen_w - left - right
-    if content_w < ScaleUIPx(160) {
+    if content_w < Scale(160) {
         content_w = screen_w - left - right
     }
-    if content_w < ScaleUIPx(96) {
-        left = ScaleUIPx(8) + ScaleUIPx(AndroidHostLeftReserved())
-        right = ScaleUIPx(8) + ScaleUIPx(AndroidHostRightReserved())
+    if content_w < Scale(96) {
+        left = Scale(8) + Scale(AndroidHostLeftReserved())
+        right = Scale(8) + Scale(AndroidHostRightReserved())
         content_w = screen_w - left - right
     }
     if content_w < 1 {
@@ -346,59 +343,59 @@ pass_frame :: () #ui {
 
     settings_capture_theme_input()
 
-    nav_h: int = ScaleUIPx(66)
+    nav_h: int = Scale(66)
     nav_y: int = screen_h - bottom - nav_h
-    scrollbar_x: int = screen_w - ScaleUIPx(AndroidHostRightReserved()) - ScaleUIPx(8)
+    scrollbar_x: int = screen_w - Scale(AndroidHostRightReserved()) - Scale(8)
     y: int = top
     view_h: int = nav_y - y
-    if view_h < ScaleUIPx(180) {
-        view_h = ScaleUIPx(180)
+    if view_h < Scale(180) {
+        view_h = Scale(180)
     }
     pass_focused_rect_valid = 0
 
     if view == VIEW_GENERATE {
-        area := (UIScrollArea){
+        area := (ScrollArea){
             .bounds = {left, y, content_w, view_h},
             .content_height = pass_generate_content_height(),
             .scroll_offset = &generate_scroll,
             .content_width = content_w,
             .scrollbar_x = scrollbar_x
         }
-        scroll := BeginUIScrollContainer(area)
+        scroll := BeginScrollContainer(area)
         pass_draw_generate(scroll.content_x, scroll.content_y, scroll.content_w)
         pass_ensure_focused_input_visible(area)
-        EndUIScrollContainer(area, scroll)
+        EndScrollContainer(area, scroll)
     } else if view == VIEW_PROFILES {
-        area := (UIScrollArea){
+        area := (ScrollArea){
             .bounds = {left, y, content_w, view_h},
             .content_height = profiles_content_height(),
             .scroll_offset = &profiles_scroll,
             .content_width = content_w,
             .scrollbar_x = scrollbar_x
         }
-        scroll := BeginUIScrollContainer(area)
+        scroll := BeginScrollContainer(area)
         pass_draw_profiles(scroll.content_x, scroll.content_y, scroll.content_w)
         pass_ensure_focused_input_visible(area)
-        EndUIScrollContainer(area, scroll)
+        EndScrollContainer(area, scroll)
     } else {
-        area := (UIScrollArea){
+        area := (ScrollArea){
             .bounds = {left, y, content_w, view_h},
             .content_height = settings_content_height(master),
             .scroll_offset = &settings_scroll,
             .content_width = content_w,
             .scrollbar_x = scrollbar_x
         }
-        scroll := BeginUIScrollContainer(area)
+        scroll := BeginScrollContainer(area)
         settings_draw(scroll.content_x, scroll.content_y, scroll.content_w, master, &master_cursor, &reveal_master, &auto_copy, &clear_seconds, &show_fingerprint, &length, &counter, &lower, &upper, &digits, &symbols, exclude, &exclude_cursor, &theme_source, &theme_mode, &theme_id, &theme_style)
-        pass_request_focused_input_visible(512, (Rectangle){scroll.content_x, scroll.content_y + ScaleUIPx(364), scroll.content_w, ScaleUIPx(62)})
-        pass_request_focused_input_visible(530, (Rectangle){scroll.content_x, scroll.content_y + ScaleUIPx(534), scroll.content_w, ScaleUIPx(62)})
+        pass_request_focused_input_visible(512, (Rectangle){scroll.content_x, scroll.content_y + Scale(364), scroll.content_w, Scale(62)})
+        pass_request_focused_input_visible(530, (Rectangle){scroll.content_x, scroll.content_y + Scale(534), scroll.content_w, Scale(62)})
         pass_ensure_focused_input_visible(area)
-        EndUIScrollContainer(area, scroll)
+        EndScrollContainer(area, scroll)
     }
     DrawRectangleRec((Rectangle){0, nav_y, screen_w, screen_h - nav_y}, GetThemeSurface())
     Line(0, nav_y, screen_w, nav_y, Fade(GetThemeIcon(), 0.24f))
     nav_draw(left, nav_y, content_w, nav_h, &view)
     if view == VIEW_SETTINGS {
-        settings_draw_theme_modal(&auto_copy, &clear_seconds, &show_fingerprint, &length, &counter, &lower, &upper, &digits, &symbols, exclude, &theme_source, &theme_mode, &theme_id, &theme_style, &theme_menu_state)
+        settings_draw_theme_modal(&auto_copy, &clear_seconds, &show_fingerprint, &length, &counter, &lower, &upper, &digits, &symbols, exclude, &theme_source, &theme_mode, &theme_id, &theme_style)
     }
 }

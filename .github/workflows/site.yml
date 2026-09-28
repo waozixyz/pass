@@ -14,23 +14,21 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  guard-submodule-urls:
-    name: Submodule URLs are public HTTPS
+  guard-package-urls:
+    name: Package URLs are public HTTPS
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Reject non-HTTPS submodule URLs
-        run: scripts/check_submodule_urls.sh
+      - name: Reject submodules and non-HTTPS package URLs
+        run: scripts/check_package_urls.sh
 
   build:
-    needs: guard-submodule-urls
+    needs: guard-package-urls
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          submodules: recursive
       - name: Install Emscripten
         run: |
           set -euo pipefail

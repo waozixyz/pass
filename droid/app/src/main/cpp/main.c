@@ -4,11 +4,6 @@
 
 #include "kryon.h"
 #include "embedded_assets.h"
-#include "ui_dpi.h"
-#include "ui_core.h"
-#include "ui_scaling.h"
-#include "ui_text.h"
-
 #include "android_host.h"
 #include "app/pass.h"
 #include "pass_runtime.h"
@@ -21,8 +16,8 @@
 #include <unistd.h>
 #endif
 
-static const char *const FONT_ASSET_PATH = "vendor/kryon/fonts/noto/NotoSans-Regular.ttf";
-static const char *const EMOJI_FONT_ASSET_PATH = "assets/fonts/emoji.ttf";
+static const char *const FONT_ASSET_PATH = "fonts/noto/NotoSans-Regular.ttf";
+static const char *const EMOJI_FONT_ASSET_PATH = "fonts/emoji.ttf";
 
 /* Kryon's shape drawing rides on a 1x1 white texture so rectangles tint
  * cleanly on the GL ES surface (same setup inbe performs on Android). */
@@ -48,13 +43,13 @@ setup_ui_font(void)
         TraceLog(LOG_WARNING, "PASS: missing embedded font asset");
         return 0;
     }
-    if(!RegisterUIFontSource("ui", GetEmbeddedAssetExtension(FONT_ASSET_PATH),
+    if(!RegisterTextFontSource("ui", GetEmbeddedAssetExtension(FONT_ASSET_PATH),
                              asset->data, asset->size, NULL, 0)) {
-        TraceLog(LOG_WARNING, "PASS: RegisterUIFontSource failed");
+        TraceLog(LOG_WARNING, "PASS: RegisterTextFontSource failed");
         return 0;
     }
-    if(!UseUIFont("ui")) {
-        TraceLog(LOG_WARNING, "PASS: UseUIFont failed");
+    if(!UseTextFont("ui")) {
+        TraceLog(LOG_WARNING, "PASS: UseTextFont failed");
         return 0;
     }
     return 1;
@@ -71,9 +66,9 @@ setup_emoji_font(void)
         TraceLog(LOG_WARNING, "PASS: missing embedded emoji font asset");
         return 0;
     }
-    if(!RegisterUIFixedFontSource("pass-emoji", GetEmbeddedAssetExtension(EMOJI_FONT_ASSET_PATH),
+    if(!RegisterFixedTextFontSource("pass-emoji", GetEmbeddedAssetExtension(EMOJI_FONT_ASSET_PATH),
                                   asset->data, asset->size, codepoints, codepoint_count)) {
-        TraceLog(LOG_WARNING, "PASS: RegisterUIFixedFontSource failed for emoji");
+        TraceLog(LOG_WARNING, "PASS: RegisterFixedTextFontSource failed for emoji");
         return 0;
     }
     return 1;
@@ -106,13 +101,14 @@ main(int argc, char **argv)
         TraceLog(LOG_ERROR, "PASS: InitWindow failed");
         return 1;
     }
-    InitUIDPI();
-    SetThemeStyle(THEME_STYLE_MATERIAL);
-    SetCurrentTheme(GetDefaultThemeForThemeStyle(THEME_STYLE_MATERIAL), 0);
+    InitDPI();
+    EnsureBuiltInStylePacks();
+    SetActiveStylePack("material");
+    SetCurrentTheme(THEME_SWEET, 0);
     AndroidHostApplySystemTheme();
     SetThemeMode(THEME_MODE_SYSTEM);
     SetThemeSource(THEME_SOURCE_SYSTEM);
-    ApplyCurrentUITheme();
+    ApplyCurrentTheme();
     setup_ui_font();
     setup_emoji_font();
     setup_shapes_texture();
@@ -123,10 +119,9 @@ main(int argc, char **argv)
     TraceLog(LOG_INFO, "PASS: app ready");
     while(!WindowShouldClose()) {
         BeginFrame();
-        BeginUIFrame(GetFrameWidth(), GetFrameHeight(), GetFrameScale());
         pass_runtime_tick();
         pass_frame();
-        EndUIFrame();
+
         EndFrame();
     }
 

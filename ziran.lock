@@ -1,0 +1,23 @@
+{
+  "format": 1,
+  "packages": [
+    {
+      "commit": "485206660993c4fda6f7b014557fbfc9fcdae5d6",
+      "dependencies": {},
+      "id": "pac89f0e8fed6b994",
+      "name": "Kryon",
+      "ref": "master",
+      "source": true,
+      "url": "https://github.com/kryonlabs/kryon.git"
+    }
+  ],
+  "root": {
+    "dependencies": {"Kryon": "pac89f0e8fed6b994"},
+    "name": "Pass"
+  },
+  "toolchain": {
+    "commit": "d61e47f8da3b17b7855f247624b1ade4104d45c3",
+    "ref": "master",
+    "url": "https://github.com/ziranlang/ziran.git"
+  }
+}

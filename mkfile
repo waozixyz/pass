@@ -7,9 +7,9 @@ TARG=pass
 ROOT=/sys/src/pass
 
 gensrc=`{cat $ROOT/build/plan9/generated-c-files.txt}
-appsrc=native/pass_core.c native/pass_runtime.c native/pass_plan9_main.c
+appsrc=native/pass_core_zi.c build/plan9/zigen/pass_core.c native/pass_runtime.c native/pass_plan9_main.c
 hostsrc=build/plan9/pass_embedded_assets.c
-APPCPPFLAGS=-I$ROOT/build/plan9/generated -I$ROOT/native
+APPCPPFLAGS=-I$ROOT/build/plan9/generated -I$ROOT/build/plan9/zigen -I$ROOT/native
 LDLIBS=
 
 < /sys/src/kryon/mk/plan9-app.mk

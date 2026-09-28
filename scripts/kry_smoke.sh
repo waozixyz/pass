@@ -2,7 +2,9 @@
 set -eu
 
 root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-kryon_dir=${KRYON_DIR:-"$root/vendor/kryon"}
+ziran=${ZIRAN:-"$root/scripts/ziran.sh"}
+kryon_dir=${KRYON_DIR:-"$($ziran pkg path Kryon --locked --submodules)"}
+test -n "$kryon_dir"
 arch=$(uname -m)
 if [ "$arch" = "amd64" ]; then
     arch=x86_64
@@ -30,6 +32,8 @@ c_amalgam="$work/pass_kry_generated.c"
 pass_c=
 for file in $(find "$work/c" -type f -name '*.c' | LC_ALL=C sort); do
     case "$file" in
+        */kryon_project.c)
+            ;;
         */app/pass.c)
             pass_c=$file
             ;;
@@ -48,6 +52,7 @@ cc -fsyntax-only \
     -D_FILE_OFFSET_BITS=64 \
     -I"$kryon_dir/include" \
     -I"$kryon_dir/src" \
+    -I"$kryon_dir/build/$platform-$arch/generated/src" \
     -I"$work/c" \
     -I"$root/native" \
     -I"$root/droid/app/src/main/cpp" \

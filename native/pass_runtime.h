@@ -1,6 +1,11 @@
 #ifndef PASS_RUNTIME_H
 #define PASS_RUNTIME_H
 
+#define PASS_THEME_STYLE_SYSTEM 0
+#define PASS_THEME_STYLE_RETRO 1
+#define PASS_THEME_STYLE_MATERIAL 2
+#define PASS_STYLE_PACK_SIZE 64
+
 #include <stddef.h>
 
 #if defined(__cplusplus)
@@ -48,6 +53,8 @@ int pass_unlock_master(void);
 int pass_clear_master(void);
 char *pass_fingerprint_status(void);
 int pass_take_unlocked_master(char *out);
+int pass_get_style_pack(char *out, int out_size);
+int pass_set_style_pack(const char *style_pack);
 
 #if defined(__cplusplus)
 }

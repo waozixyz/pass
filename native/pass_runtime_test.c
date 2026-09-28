@@ -160,6 +160,7 @@ remove_storage_files(void)
     remove(".kryon_pass_theme_mode.txt");
     remove(".kryon_pass_theme_id.txt");
     remove(".kryon_pass_theme_style.txt");
+    remove(".kryon_pass_style_pack.txt");
 }
 
 static void
@@ -179,6 +180,7 @@ check_loaded_settings(void)
     int theme_id = -1;
     int theme_style = -1;
     char exclude[16];
+    char style_pack[PASS_STYLE_PACK_SIZE];
 
     memset(exclude, 0, sizeof(exclude));
     pass_load_settings(&auto_copy, &clear_seconds, &show_fingerprint,
@@ -198,7 +200,9 @@ check_loaded_settings(void)
     check_int("migrated theme_source", theme_source, THEME_SOURCE_APP);
     check_int("migrated theme_mode", theme_mode, THEME_MODE_SYSTEM);
     check_int("migrated theme_id", theme_id, THEME_SWEET);
-    check_int("migrated theme_style", theme_style, THEME_STYLE_MATERIAL);
+    check_int("migrated theme_style", theme_style, PASS_THEME_STYLE_MATERIAL);
+    pass_get_style_pack(style_pack, sizeof(style_pack));
+    check_str("migrated style pack", style_pack, "material");
 
     pass_load_settings(NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
                        NULL, NULL, 0, NULL, NULL, NULL, NULL);
@@ -207,6 +211,8 @@ check_loaded_settings(void)
 static void
 check_generation_and_clipboard(void)
 {
+    char style_pack[PASS_STYLE_PACK_SIZE];
+
     check_str("initial status", pass_status(), "Ready");
     check_str("empty emoji", pass_master_emoji(""), "");
     check_int("nonempty emoji", (int)strlen(pass_master_emoji("master")) > 0, 1);
@@ -224,6 +230,9 @@ check_generation_and_clipboard(void)
 
     check_int("save settings", pass_save_settings(0, -2, 1, 1, 0, 1, 1, 1, 1,
                                                   NULL, 9, 8, 7, 6), 0);
+    check_int("set style pack", pass_set_style_pack("lightfield"), 0);
+    pass_get_style_pack(style_pack, sizeof(style_pack));
+    check_str("saved style pack", style_pack, "lightfield");
     check_int("generate invalid", pass_generate("site", "login", "master",
                                                8, 1, 0, 0, 0, 0, ""), 1);
     check_str("invalid clears generated", pass_generated(), "");

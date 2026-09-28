@@ -15,25 +15,22 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  guard-submodule-urls:
-    name: Submodule URLs are public HTTPS
+  guard-package-urls:
+    name: Package URLs are public HTTPS
     runs-on: ubuntu-latest
     steps:
-      # Plain checkout on purpose: the guard validates URLs before allowing
-      # recursive submodule checkout to continue.
+      # Plain checkout on purpose: the guard validates URLs before fetching.
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Reject non-HTTPS submodule URLs
-        run: scripts/check_submodule_urls.sh
+      - name: Reject submodules and non-HTTPS package URLs
+        run: scripts/check_package_urls.sh
 
   test:
     runs-on: ubuntu-latest
-    needs: guard-submodule-urls
+    needs: guard-package-urls
     steps:
       - uses: actions/checkout@v4
-        with:
-          submodules: recursive
       - name: Install Emscripten
         run: |
           set -euo pipefail
@@ -76,7 +73,7 @@ jobs:
 
   build-gui:
     name: GUI (${{ matrix.arch }})
-    needs: guard-submodule-urls
+    needs: guard-package-urls
     strategy:
       matrix:
         include:
@@ -87,8 +84,6 @@ jobs:
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
-        with:
-          submodules: recursive
       - name: Install native dependencies
         run: |
           mapfile -t packages < .github/apt/gui-packages.txt
@@ -108,11 +103,9 @@ jobs:
     name: Android debug build
     runs-on: ubuntu-latest
     timeout-minutes: 60
-    needs: guard-submodule-urls
+    needs: guard-package-urls
     steps:
       - uses: actions/checkout@v4
-        with:
-          submodules: recursive
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -135,7 +128,7 @@ jobs:
           path: |
             droid/app/.cxx
             droid/app/build/intermediates/cxx
-          key: android-native-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('app/*.kry', 'droid/app/src/main/cpp/CMakeLists.txt', 'droid/app/build.gradle', 'native/*.c', 'droid/app/src/main/cpp/*.c', 'vendor/kryon/src/**/*.c', 'vendor/kryon/include/**/*.h', 'vendor/kryon/vendor/raylib/src/**') }}
+          key: android-native-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('app/*.kry', 'droid/app/src/main/cpp/CMakeLists.txt', 'droid/app/build.gradle', 'native/*.c', 'droid/app/src/main/cpp/*.c', 'ziran.lock') }}
           restore-keys: |
             android-native-${{ runner.os }}-${{ runner.arch }}-
       - name: Install Android SDK components
@@ -154,11 +147,9 @@ jobs:
     name: Android input instrumentation
     runs-on: ubuntu-latest
     timeout-minutes: 60
-    needs: guard-submodule-urls
+    needs: guard-package-urls
     steps:
       - uses: actions/checkout@v4
-        with:
-          submodules: recursive
       - uses: actions/setup-java@v4
         with:
           distribution: temurin

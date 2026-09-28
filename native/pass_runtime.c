@@ -47,6 +47,7 @@ typedef struct {
     int theme_mode;
     int theme_id;
     int theme_style;
+    char style_pack[PASS_STYLE_PACK_SIZE];
 } PassRuntimeSettings;
 
 typedef struct {
@@ -116,7 +117,8 @@ runtime_defaults(void)
     runtime.settings.theme_source = THEME_SOURCE_APP;
     runtime.settings.theme_mode = THEME_MODE_SYSTEM;
     runtime.settings.theme_id = THEME_SWEET;
-    runtime.settings.theme_style = THEME_STYLE_MATERIAL;
+    runtime.settings.theme_style = PASS_THEME_STYLE_MATERIAL;
+    copy_text(runtime.settings.style_pack, sizeof(runtime.settings.style_pack), "material");
     copy_text(runtime.status, sizeof(runtime.status), "Ready");
     copy_text(runtime.fingerprint_status, sizeof(runtime.fingerprint_status), "No saved master password");
 }
@@ -187,50 +189,62 @@ static void
 load_settings(void)
 {
     load_legacy_settings();
-    KryAppStorageGetInt(PASS_SETTINGS_SCOPE, "auto_copy",
+    AppStorageGetInt(PASS_SETTINGS_SCOPE, "auto_copy",
                         runtime.settings.auto_copy,
                         &runtime.settings.auto_copy);
-    KryAppStorageGetInt(PASS_SETTINGS_SCOPE, "clear_after_seconds",
+    AppStorageGetInt(PASS_SETTINGS_SCOPE, "clear_after_seconds",
                         runtime.settings.clear_seconds,
                         &runtime.settings.clear_seconds);
-    KryAppStorageGetInt(PASS_SETTINGS_SCOPE, "show_fingerprint",
+    AppStorageGetInt(PASS_SETTINGS_SCOPE, "show_fingerprint",
                         runtime.settings.show_fingerprint,
                         &runtime.settings.show_fingerprint);
-    KryAppStorageGetInt(PASS_SETTINGS_SCOPE, "length",
+    AppStorageGetInt(PASS_SETTINGS_SCOPE, "length",
                         runtime.settings.length,
                         &runtime.settings.length);
     runtime.settings.length = clamp_length(runtime.settings.length);
-    KryAppStorageGetInt(PASS_SETTINGS_SCOPE, "counter",
+    AppStorageGetInt(PASS_SETTINGS_SCOPE, "counter",
                         runtime.settings.counter,
                         &runtime.settings.counter);
-    KryAppStorageGetInt(PASS_SETTINGS_SCOPE, "lower",
+    AppStorageGetInt(PASS_SETTINGS_SCOPE, "lower",
                         runtime.settings.lower,
                         &runtime.settings.lower);
-    KryAppStorageGetInt(PASS_SETTINGS_SCOPE, "upper",
+    AppStorageGetInt(PASS_SETTINGS_SCOPE, "upper",
                         runtime.settings.upper,
                         &runtime.settings.upper);
-    KryAppStorageGetInt(PASS_SETTINGS_SCOPE, "digits",
+    AppStorageGetInt(PASS_SETTINGS_SCOPE, "digits",
                         runtime.settings.digits,
                         &runtime.settings.digits);
-    KryAppStorageGetInt(PASS_SETTINGS_SCOPE, "symbols",
+    AppStorageGetInt(PASS_SETTINGS_SCOPE, "symbols",
                         runtime.settings.symbols,
                         &runtime.settings.symbols);
-    KryAppStorageGetString(PASS_SETTINGS_SCOPE, "exclude",
+    AppStorageGetString(PASS_SETTINGS_SCOPE, "exclude",
                            runtime.settings.exclude,
                            runtime.settings.exclude,
                            sizeof(runtime.settings.exclude));
-    KryAppStorageGetInt(PASS_SETTINGS_SCOPE, "theme_source",
+    AppStorageGetInt(PASS_SETTINGS_SCOPE, "theme_source",
                         runtime.settings.theme_source,
                         &runtime.settings.theme_source);
-    KryAppStorageGetInt(PASS_SETTINGS_SCOPE, "theme_mode",
+    AppStorageGetInt(PASS_SETTINGS_SCOPE, "theme_mode",
                         runtime.settings.theme_mode,
                         &runtime.settings.theme_mode);
-    KryAppStorageGetInt(PASS_SETTINGS_SCOPE, "theme_id",
+    AppStorageGetInt(PASS_SETTINGS_SCOPE, "theme_id",
                         runtime.settings.theme_id,
                         &runtime.settings.theme_id);
-    KryAppStorageGetInt(PASS_SETTINGS_SCOPE, "theme_style",
+    AppStorageGetInt(PASS_SETTINGS_SCOPE, "theme_style",
                         runtime.settings.theme_style,
                         &runtime.settings.theme_style);
+    runtime.settings.style_pack[0] = '\0';
+    AppStorageGetString(PASS_SETTINGS_SCOPE, "style_pack", "",
+                        runtime.settings.style_pack,
+                        sizeof(runtime.settings.style_pack));
+    if(runtime.settings.style_pack[0] == '\0') {
+        if(runtime.settings.theme_style == PASS_THEME_STYLE_RETRO)
+            copy_text(runtime.settings.style_pack,
+                      sizeof(runtime.settings.style_pack), "classic");
+        else
+            copy_text(runtime.settings.style_pack,
+                      sizeof(runtime.settings.style_pack), "material");
+    }
 }
 
 static void
@@ -241,8 +255,8 @@ migrate_default_theme_settings(void)
         runtime.settings.theme_mode == THEME_MODE_SYSTEM &&
         (runtime.settings.theme_id == THEME_MINT ||
          runtime.settings.theme_id == THEME_SWEET) &&
-        (runtime.settings.theme_style == THEME_STYLE_SYSTEM ||
-         runtime.settings.theme_style == THEME_STYLE_MATERIAL);
+        (runtime.settings.theme_style == PASS_THEME_STYLE_SYSTEM ||
+         runtime.settings.theme_style == PASS_THEME_STYLE_MATERIAL);
 
     if(!legacy_system_default)
         return;
@@ -250,7 +264,7 @@ migrate_default_theme_settings(void)
     runtime.settings.theme_source = THEME_SOURCE_APP;
     runtime.settings.theme_mode = THEME_MODE_SYSTEM;
     runtime.settings.theme_id = THEME_SWEET;
-    runtime.settings.theme_style = THEME_STYLE_MATERIAL;
+    runtime.settings.theme_style = PASS_THEME_STYLE_MATERIAL;
 }
 
 static int
@@ -258,34 +272,36 @@ write_settings(void)
 {
     int ok = 1;
 
-    ok &= KryAppStorageSetInt(PASS_SETTINGS_SCOPE, "auto_copy",
+    ok &= AppStorageSetInt(PASS_SETTINGS_SCOPE, "auto_copy",
                               runtime.settings.auto_copy ? 1 : 0);
-    ok &= KryAppStorageSetInt(PASS_SETTINGS_SCOPE, "clear_after_seconds",
+    ok &= AppStorageSetInt(PASS_SETTINGS_SCOPE, "clear_after_seconds",
                               runtime.settings.clear_seconds);
-    ok &= KryAppStorageSetInt(PASS_SETTINGS_SCOPE, "show_fingerprint",
+    ok &= AppStorageSetInt(PASS_SETTINGS_SCOPE, "show_fingerprint",
                               runtime.settings.show_fingerprint ? 1 : 0);
-    ok &= KryAppStorageSetInt(PASS_SETTINGS_SCOPE, "length",
+    ok &= AppStorageSetInt(PASS_SETTINGS_SCOPE, "length",
                               runtime.settings.length);
-    ok &= KryAppStorageSetInt(PASS_SETTINGS_SCOPE, "counter",
+    ok &= AppStorageSetInt(PASS_SETTINGS_SCOPE, "counter",
                               runtime.settings.counter);
-    ok &= KryAppStorageSetInt(PASS_SETTINGS_SCOPE, "lower",
+    ok &= AppStorageSetInt(PASS_SETTINGS_SCOPE, "lower",
                               runtime.settings.lower ? 1 : 0);
-    ok &= KryAppStorageSetInt(PASS_SETTINGS_SCOPE, "upper",
+    ok &= AppStorageSetInt(PASS_SETTINGS_SCOPE, "upper",
                               runtime.settings.upper ? 1 : 0);
-    ok &= KryAppStorageSetInt(PASS_SETTINGS_SCOPE, "digits",
+    ok &= AppStorageSetInt(PASS_SETTINGS_SCOPE, "digits",
                               runtime.settings.digits ? 1 : 0);
-    ok &= KryAppStorageSetInt(PASS_SETTINGS_SCOPE, "symbols",
+    ok &= AppStorageSetInt(PASS_SETTINGS_SCOPE, "symbols",
                               runtime.settings.symbols ? 1 : 0);
-    ok &= KryAppStorageSetString(PASS_SETTINGS_SCOPE, "exclude",
+    ok &= AppStorageSetString(PASS_SETTINGS_SCOPE, "exclude",
                                  runtime.settings.exclude);
-    ok &= KryAppStorageSetInt(PASS_SETTINGS_SCOPE, "theme_source",
+    ok &= AppStorageSetInt(PASS_SETTINGS_SCOPE, "theme_source",
                               runtime.settings.theme_source);
-    ok &= KryAppStorageSetInt(PASS_SETTINGS_SCOPE, "theme_mode",
+    ok &= AppStorageSetInt(PASS_SETTINGS_SCOPE, "theme_mode",
                               runtime.settings.theme_mode);
-    ok &= KryAppStorageSetInt(PASS_SETTINGS_SCOPE, "theme_id",
+    ok &= AppStorageSetInt(PASS_SETTINGS_SCOPE, "theme_id",
                               runtime.settings.theme_id);
-    ok &= KryAppStorageSetInt(PASS_SETTINGS_SCOPE, "theme_style",
+    ok &= AppStorageSetInt(PASS_SETTINGS_SCOPE, "theme_style",
                               runtime.settings.theme_style);
+    ok &= AppStorageSetString(PASS_SETTINGS_SCOPE, "style_pack",
+                              runtime.settings.style_pack);
     if(!ok) {
         copy_text(runtime.status, sizeof(runtime.status), "Could not save settings");
         return 1;
@@ -675,6 +691,25 @@ pass_load_settings(int *auto_copy, int *clear_seconds, int *show_fingerprint,
         *theme_id = runtime.settings.theme_id;
     if(theme_style != NULL)
         *theme_style = runtime.settings.theme_style;
+    return 0;
+}
+
+int
+pass_get_style_pack(char *out, int out_size)
+{
+    if(out == NULL || out_size <= 0)
+        return 1;
+    copy_text(out, (size_t)out_size, runtime.settings.style_pack);
+    return 0;
+}
+
+int
+pass_set_style_pack(const char *style_pack)
+{
+    if(style_pack == NULL || style_pack[0] == '\0')
+        return 1;
+    copy_text(runtime.settings.style_pack,
+              sizeof(runtime.settings.style_pack), style_pack);
     return 0;
 }
 

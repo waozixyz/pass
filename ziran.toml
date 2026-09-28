@@ -1,0 +1,13 @@
+[package]
+name = "Pass"
+entry = "pass_core.zi"
+module_roots = ["."]
+
+[toolchain]
+git = "https://github.com/ziranlang/ziran.git"
+ref = "master"
+
+[dependencies.Kryon]
+git = "https://github.com/kryonlabs/kryon.git"
+ref = "master"
+source = true

@@ -8,7 +8,11 @@ android {
     ndkVersion "28.2.13676358"
 
     sourceSets {
-        main.java.srcDirs += '../../vendor/kryon/src/platform/android/java'
+        def kryonDir = System.getenv('KRYON_DIR')
+        if (!kryonDir) {
+            throw new GradleException('Set KRYON_DIR to the Ziran-locked Kryon checkout')
+        }
+        main.java.srcDirs += "${kryonDir}/src/platform/android/java"
     }
 
     compileOptions {
