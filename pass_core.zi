@@ -169,3 +169,59 @@ Sha256 :: (data: string) -> [32]u8 {
     context = Sha256Update(context, data)
     return Sha256Final(context)
 }
+
+HmacSha256 :: (key: string, message: string) -> [32]u8 {
+    block_key: [64]u8
+    if key.count > 64 {
+        hashed_key := Sha256(key)
+        for index: 0..31 { block_key[index] = hashed_key[index] }
+    } else {
+        key_length: s32 = cast(s32)key.count
+        if key_length > 0 {
+            index: s32 = 0
+            while index < key_length {
+                block_key[index] = key[index]
+                index += 1
+            }
+        }
+    }
+
+    pad: [64]u8
+    for index: 0..63 { pad[index] = block_key[index] ^ cast(u8)0x36 }
+    context := Sha256Initialize()
+    context = Sha256Update(context, TextView(pad[0:64]))
+    context = Sha256Update(context, message)
+    inner := Sha256Final(context)
+
+    for index: 0..63 { pad[index] = block_key[index] ^ cast(u8)0x5c }
+    context = Sha256Initialize()
+    context = Sha256Update(context, TextView(pad[0:64]))
+    context = Sha256Update(context, TextView(inner[0:32]))
+    return Sha256Final(context)
+}
+
+DeriveKey :: (password: string, salt: string) -> [32]u8 {
+    block_input: [512]u8
+    salt_length: s32 = cast(s32)salt.count
+    if salt_length > 508 { salt_length = 508 }
+    if salt_length > 0 {
+        index: s32 = 0
+        while index < salt_length {
+            block_input[index] = salt[index]
+            index += 1
+        }
+    }
+    block_input[salt_length] = cast(u8)0
+    block_input[salt_length + 1] = cast(u8)0
+    block_input[salt_length + 2] = cast(u8)0
+    block_input[salt_length + 3] = cast(u8)1
+    input_length: s32 = salt_length + 4
+
+    output := HmacSha256(password, TextView(block_input[0:input_length]))
+    previous: [32]u8 = output
+    for round: 1..99999 {
+        previous = HmacSha256(password, TextView(previous[0:32]))
+        for index: 0..31 { output[index] ^= previous[index] }
+    }
+    return output
+}
