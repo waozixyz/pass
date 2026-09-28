@@ -1,4 +1,4 @@
-#include "pass_core.h"
+#include <pass_core.h>
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -19,6 +19,7 @@ typedef struct {
     const char *site;
     const char *login;
     const char *master;
+    const char *exclude;
 } Cli;
 
 static void
@@ -137,7 +138,7 @@ parse_args(int argc, char **argv, Cli *cli)
         } else if(strcmp(arg, "--exclude") == 0) {
             if(!take_value(argc, argv, &i, &value, arg))
                 return 0;
-            cli->options.exclude = value;
+            cli->exclude = value;
         } else if(strcmp(arg, "-p") == 0 || strcmp(arg, "--prompt") == 0) {
             cli->prompt = 1;
         } else if(strcmp(arg, "-c") == 0 || strcmp(arg, "--copy") == 0) {
@@ -169,9 +170,9 @@ main(int argc, char **argv)
 {
     Cli cli;
     char master[1024];
-    char out[256];
-    char err[256];
     const char *env_master;
+    PassOptions options;
+    PassResult generated;
 
     memset(&cli, 0, sizeof(cli));
     cli.options.length = 16;
@@ -180,7 +181,7 @@ main(int argc, char **argv)
     cli.options.uppercase = 1;
     cli.options.digits = 1;
     cli.options.symbols = 1;
-    cli.options.exclude = "";
+    cli.exclude = "";
 
     if(!parse_args(argc, argv, &cli)) {
         usage(stderr);
@@ -211,15 +212,23 @@ main(int argc, char **argv)
         }
     }
 
-    memset(out, 0, sizeof(out));
-    memset(err, 0, sizeof(err));
-    if(pass_core_generate(cli.site, cli.login, master, &cli.options,
-                          out, sizeof(out), err, sizeof(err)) != 0) {
-        fprintf(stderr, "pass: %s\n", err);
+    options = cli.options;
+    options.exclude = StringView(cli.exclude, strlen(cli.exclude));
+    generated = pass_core_PassGenerate(
+        StringView(cli.site, strlen(cli.site)),
+        StringView(cli.login, strlen(cli.login)),
+        StringView(master, strlen(master)), options);
+    if(!generated.valid) {
+        fprintf(stderr, "pass: ");
+        fwrite(generated.error.data, 1, generated.error.length, stderr);
+        fputc('\n', stderr);
+        memset(master, 0, sizeof(master));
         return 1;
     }
-    printf("%s\n", out);
+
+    fwrite(generated.password, 1, (size_t)generated.length, stdout);
+    fputc('\n', stdout);
     memset(master, 0, sizeof(master));
-    memset(out, 0, sizeof(out));
+    memset(&generated, 0, sizeof(generated));
     return 0;
 }

@@ -14,6 +14,9 @@ KRY_C_STAMP := $(KRY_C_GENERATED_DIR)/.stamp
 KRY_C_APP_SRCS := $(KRY_C_GENERATED_DIR)/app/nav.c $(KRY_C_GENERATED_DIR)/app/pass.c $(KRY_C_GENERATED_DIR)/app/profiles.c $(KRY_C_GENERATED_DIR)/app/settings.c
 K2C := $(KRYON_BUILD_DIR)/bin/k2c
 ZIRAN_BIN ?= ../ziran/build/bin/ziran
+ZIRAN_INCLUDE := $(shell dirname "$(ZIRAN_BIN)")/../../include
+ZIGEN_DIR := build/zigen
+ZIGEN_CFLAGS := -Wno-unused-variable
 PASS_VERSION := $(shell sed -n '1p' VERSION)
 WEB_EMSDK_BIN ?= $(HOME)/emsdk/upstream/emscripten
 WEB_CC ?= $(if $(wildcard $(WEB_EMSDK_BIN)/emcc),$(WEB_EMSDK_BIN)/emcc,emcc)
@@ -39,8 +42,12 @@ all: cli gui
 cli: build/pass
 	cp build/pass pass
 
-build/pass: native/pass_cli.c native/pass_core.c native/pass_core.h | build
-	$(CC) -Wall -Wextra -O2 -std=gnu99 -Inative -DPASS_VERSION=\"$(PASS_VERSION)\" native/pass_cli.c native/pass_core.c -o $@
+$(ZIGEN_DIR)/pass_core.c: pass_core.zi | build
+	rm -rf $(ZIGEN_DIR)
+	$(ZIRAN_BIN) build --target=c --root . -o $(ZIGEN_DIR) pass_core.zi
+
+build/pass: native/pass_cli.c $(ZIGEN_DIR)/pass_core.c | build
+	$(CC) -Wall -Wextra -O2 -std=gnu99 $(ZIGEN_CFLAGS) -I$(ZIGEN_DIR) -I$(ZIRAN_INCLUDE) -DPASS_VERSION=\"$(PASS_VERSION)\" native/pass_cli.c $(ZIGEN_DIR)/pass_core.c -o $@
 
 build build/gui:
 	mkdir -p $@
