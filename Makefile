@@ -16,7 +16,7 @@ CFLAGS := -std=c99 -O2 -Wno-unused-variable -I$(ZIRAN_ROOT)/include
 PROJECT := --project $(LOCK_FLAGS)
 ANDROID_ABIS ?= armeabi-v7a,arm64-v8a
 
-.PHONY: all cli gui native run test source-check core-test ziran-core-test cli-test runtime-test mini-test lesspass-compat-test gui-smoke web web-canvas site web-smoke android-debug android-emulator android-release android-smoke android-input-test e2e check-package-urls install install-cli install-gui uninstall-cli uninstall-gui package-deb package-appimage plan9-c
+.PHONY: all cli gui native run test source-check core-test ziran-core-test cli-test runtime-test mini-test lesspass-compat-test gui-smoke gui-input-test web web-canvas site web-smoke android-debug android-emulator android-release android-smoke android-input-test e2e check-package-urls install install-cli install-gui uninstall-cli uninstall-gui package-deb package-appimage plan9-c
 all: cli gui
 native: all
 
@@ -55,6 +55,8 @@ lesspass-compat-test: cli
 test: source-check core-test runtime-test mini-test cli-test lesspass-compat-test
 gui-smoke: gui
 	sh scripts/gui_smoke.sh
+gui-input-test: gui
+	sh scripts/gui_input_test.sh
 
 build/generated/browser/.complete: $(SOURCES) $(LIBRARY_SOURCES) ziran.toml ziran.lock
 	mkdir -p $(@D)
@@ -108,7 +110,7 @@ plan9-c:
 
 check-package-urls:
 	bash scripts/check_package_urls.sh
-e2e: check-package-urls test gui-smoke web-smoke android-debug
+e2e: check-package-urls test gui-smoke gui-input-test web-smoke android-debug
 
 install: install-cli install-gui
 install-cli: cli
