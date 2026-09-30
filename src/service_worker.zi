@@ -1,0 +1,149 @@
+// Offline asset caching is authored in Ziran and compiled to the worker's
+// WebAssembly program. Emscripten supplies only the generated JS loader.
+#import "web"
+
+CacheName :: "pass-ziran-v1";
+FetchJob :: struct {
+    active: bool
+    event: s32
+    request: s32
+    resolve: s32
+    reject: s32
+    success: s32
+    failure: s32
+    cached: s32
+    opened: s32
+    response: s32
+}
+jobs: [64]FetchJob;
+install_event: s32;
+activate_event: s32;
+
+CallFunction :: (function: s32, value: WebValue) {
+    WebCall2(function, WebName("call"), WebUndefined(), value)
+}
+Caches :: () -> s32 { return WebGetObject(WebGlobal, WebName("caches")) }
+Then :: (promise: s32, success: s32, failure: s32) {
+    WebCall2(promise, WebName("then"), WebObject(success), WebObject(failure))
+}
+WaitUntil :: (event: s32, promise: s32) {
+    WebCall1(event, WebName("waitUntil"), WebObject(promise))
+}
+
+Installed :: (context: s32, cache: s32, second: s32, third: s32) {
+    assets := WebNewArray()
+    paths: [7]string = .{"./", "index.js", "index.wasm", "sw.js", "icons/icon-192.png", "icons/icon-512.png", "manifest.webmanifest"}
+    for index: 0..6 { WebSetAt(assets, cast(s32)index, WebText(paths[index])) }
+    promise := WebAsObject(WebCall1(cache, WebName("addAll"), WebObject(assets)))
+    WaitUntil(install_event, promise)
+    WebRelease(install_event); install_event = 0
+}
+Install :: (context: s32, event: s32, second: s32, third: s32) {
+    install_event = WebKeep(event)
+    WebCall0(WebGlobal, WebName("skipWaiting"))
+    promise := WebAsObject(WebCall1(Caches(), WebName("open"), WebText(CacheName)))
+    callback := WebFunction(Installed, 0)
+    chain := WebAsObject(WebCall1(promise, WebName("then"), WebObject(callback)))
+    WaitUntil(event, chain)
+}
+Activated :: (context: s32, keys: s32, second: s32, third: s32) {
+    promises := WebNewArray()
+    count := cast(s32)WebGetNumber(keys, WebName("length"))
+    index: s32 = 0
+    while index < count {
+        name := WebAsObject(WebAt(keys, index))
+        buffer: [128]u8
+        length := WebCopyString(name, buffer[:])
+        if length > 0 && TextView(buffer[0:length]) != CacheName {
+            promise := WebCall1(Caches(), WebName("delete"), WebObject(name))
+            WebSetAt(promises, index, promise)
+        }
+        index += 1
+    }
+    constructor := WebGetObject(WebGlobal, WebName("Promise"))
+    all := WebAsObject(WebCall1(constructor, WebName("all"), WebObject(promises)))
+    WaitUntil(activate_event, all)
+    clients := WebGetObject(WebGlobal, WebName("clients"))
+    WaitUntil(activate_event, WebAsObject(WebCall0(clients, WebName("claim"))))
+    WebRelease(activate_event); activate_event = 0
+}
+Activate :: (context: s32, event: s32, second: s32, third: s32) {
+    activate_event = WebKeep(event)
+    promise := WebAsObject(WebCall0(Caches(), WebName("keys")))
+    callback := WebFunction(Activated, 0)
+    chain := WebAsObject(WebCall1(promise, WebName("then"), WebObject(callback)))
+    WaitUntil(event, chain)
+}
+
+Finish :: (index: s32) {
+    job := jobs[index]
+    WebRelease(job.event); WebRelease(job.request)
+    WebRelease(job.resolve); WebRelease(job.reject)
+    WebRelease(job.success); WebRelease(job.failure)
+    WebRelease(job.cached); WebRelease(job.opened); WebRelease(job.response)
+    jobs[index] = FetchJob.{}
+}
+CacheOpened :: (index: s32, cache: s32, second: s32, third: s32) {
+    promise := WebAsObject(WebCall2(cache, WebName("put"), WebObject(jobs[index].request), WebObject(jobs[index].response)))
+    WaitUntil(jobs[index].event, promise)
+    Finish(index)
+}
+Fetched :: (index: s32, response: s32, second: s32, third: s32) {
+    CallFunction(jobs[index].resolve, WebObject(response))
+    if WebAsBool(WebGet(response, WebName("ok"))) {
+        copy := WebAsObject(WebCall0(response, WebName("clone")))
+        jobs[index].response = WebKeep(copy)
+        promise := WebAsObject(WebCall1(Caches(), WebName("open"), WebText(CacheName)))
+        jobs[index].opened = WebFunction(CacheOpened, index)
+        Then(promise, jobs[index].opened, jobs[index].failure)
+    } else {
+        Finish(index)
+    }
+}
+Cached :: (index: s32, response: s32, second: s32, third: s32) {
+    if WebIsUndefined(WebValueOf(response)) {
+        error := WebNew1(WebGetObject(WebGlobal, WebName("Error")), WebText("Pass is offline and this resource is not cached"))
+        CallFunction(jobs[index].reject, WebObject(error))
+    } else {
+        CallFunction(jobs[index].resolve, WebObject(response))
+    }
+    Finish(index)
+}
+FetchFailed :: (index: s32, error: s32, second: s32, third: s32) {
+    promise := WebAsObject(WebCall1(Caches(), WebName("match"), WebObject(jobs[index].request)))
+    jobs[index].cached = WebFunction(Cached, index)
+    WebCall1(promise, WebName("then"), WebObject(jobs[index].cached))
+}
+FetchExecutor :: (index: s32, resolve: s32, reject: s32, third: s32) {
+    jobs[index].resolve = WebKeep(resolve); jobs[index].reject = WebKeep(reject)
+    promise := WebAsObject(WebCall1(WebGlobal, WebName("fetch"), WebObject(jobs[index].request)))
+    jobs[index].success = WebFunction(Fetched, index)
+    jobs[index].failure = WebFunction(FetchFailed, index)
+    Then(promise, jobs[index].success, jobs[index].failure)
+}
+Fetch :: (context: s32, event: s32, second: s32, third: s32) {
+    request := WebGetObject(event, WebName("request"))
+    method := WebGetObject(request, WebName("method"))
+    bytes: [16]u8
+    count := WebCopyString(method, bytes[:])
+    if count != 3 || TextView(bytes[0:count]) != "GET" { return }
+    index: s32 = 0
+    while index < 64 && jobs[index].active { index += 1 }
+    if index == 64 { return }
+    jobs[index].active = true
+    jobs[index].event = WebKeep(event); jobs[index].request = WebKeep(request)
+    executor := WebFunction(FetchExecutor, index)
+    promise := WebNew1(WebGetObject(WebGlobal, WebName("Promise")), WebObject(executor))
+    WebRelease(executor)
+    WebCall1(event, WebName("respondWith"), WebObject(promise))
+}
+
+#program_export
+main :: () -> s32 {
+    scope := WebScope()
+    WebCall2(WebGlobal, WebName("addEventListener"), WebText("install"), WebObject(WebFunction(Install, 0)))
+    WebCall2(WebGlobal, WebName("addEventListener"), WebText("activate"), WebObject(WebFunction(Activate, 0)))
+    WebCall2(WebGlobal, WebName("addEventListener"), WebText("fetch"), WebObject(WebFunction(Fetch, 0)))
+    WebEnd(scope)
+    return 0
+}

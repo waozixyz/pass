@@ -1,0 +1,64 @@
+#import "runtime"
+#import "text"
+#import "text_buffer"
+Mock :: #import "runtime_host";
+
+#program_export
+RuntimeAnswer :: () -> s32 {
+    Initialize()
+    if runtime.profile_count != 0 || Status() != "Ready" { return 1 }
+    if runtime.settings.length != 16 || !runtime.settings.lower || runtime.settings.clear_seconds != 20 { return 2 }
+    if CopyPassword() || SaveMaster("") || UnlockMaster() { return 3 }
+    profile: Profile
+    profile.length = 16; profile.counter = 1
+    profile.lower = true; profile.upper = true; profile.digits = true; profile.symbols = true
+    if SaveProfile(profile) { return 4 }
+    CopyText("Example", profile.name[:]); CopyText("example.com", profile.site[:]); CopyText("alice", profile.login[:])
+    if !SaveProfile(profile) || runtime.profile_count != 1 { return 5 }
+    profile.length = 24
+    if !SaveProfile(profile) || runtime.profile_count != 1 { return 6 }
+    Initialize()
+    if runtime.profile_count != 1 || runtime.profiles[0].length != 24 { return 7 }
+    Mock.fail_writes = true
+    if DeleteProfile(0) || runtime.profile_count != 1 { return 8 }
+    CopyText("Other", profile.name[:])
+    if SaveProfile(profile) || runtime.profile_count != 1 { return 9 }
+    Mock.fail_writes = false
+    CopyText("bad\tfield", profile.name[:])
+    if SaveProfile(profile) { return 10 }
+    if DeleteProfile(-1) || GenerateProfile(99, "master") { return 11 }
+    if !DeleteProfile(0) || runtime.profile_count != 0 { return 12 }
+    runtime.settings.clear_seconds = 7; runtime.settings.auto_copy = true
+    runtime.settings.length = 24; runtime.settings.counter = 2
+    runtime.settings.theme_mode = 2
+    CopyText("0O", runtime.settings.exclude[:])
+    if !SaveSettings() { return 13 }
+    Initialize()
+    if runtime.settings.clear_seconds != 7 || !runtime.settings.auto_copy || runtime.settings.length != 24 || runtime.settings.counter != 2 || runtime.settings.theme_mode != 2 || TextUntilNul(runtime.settings.exclude[:]) != "0O" { return 14 }
+    Mock.clock = 10.0
+    CopyText("secret", runtime.generated[:])
+    if !CopyPassword() || TextUntilNul(Mock.clipboard[:]) != "secret" { return 15 }
+    Mock.clock = 16.0; Tick()
+    if TextUntilNul(Mock.clipboard[:]) != "secret" { return 16 }
+    Mock.clock = 17.0; Tick()
+    if TextUntilNul(Mock.clipboard[:]) != "" { return 17 }
+    CopyPassword(); CopyText("other app", Mock.clipboard[:]); Mock.clock = 30.0; Tick()
+    if TextUntilNul(Mock.clipboard[:]) != "other app" { return 18 }
+    Mock.secure_available = true
+    if !SaveMaster("remembered") { return 19 }
+    Tick()
+    if !UnlockMaster() { return 20 }
+    Tick()
+    if !runtime.has_unlocked_master || TextUntilNul(runtime.unlocked_master[:]) != "remembered" { return 21 }
+    if !ForgetMaster() || runtime.has_unlocked_master || Mock.secure_saved { return 22 }
+    Shutdown()
+    if Generated() != "" { return 23 }
+    return 42
+}
+
+#program_export
+main :: () -> s32 {
+    result := RuntimeAnswer()
+    if result == 42 { return 0 }
+    return result
+}

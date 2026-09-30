@@ -13,6 +13,7 @@ if [ -z "$release_date" ]; then
 fi
 
 printf '%s\n' "$release_version" > VERSION
+printf 'Version :: "%s";\n' "$release_version" > src/version.zi
 
 # Android versionName and versionCode: bump the code only when preparing a
 # different release, so rerunning this script for the same version is

@@ -1,0 +1,63 @@
+#import "app"
+#import "host"
+#import "runtime"
+#import "c_string"
+Desktop :: #import "Desktop";
+using UI :: #import "Widgets";
+#import "Frame"
+
+sdl :: #system_library "SDL2";
+SetTitle :: (window: *void, title: *u8) #foreign sdl "SDL_SetWindowTitle";
+libc :: #system_library "libc";
+WriteError :: (fd: s32, bytes: *u8, count: usize) -> isize #foreign libc "write";
+Report :: (message: string) {
+    buffer: [256]u8
+    if CopyCString(message, buffer[:]) { WriteError(2, *buffer[0], cast(usize)message.count) }
+}
+
+DrawDesktop :: (session: Session, viewport: Rectangle) -> bool {
+    Desktop.BeginDesktopFrame()
+    pointer := Desktop.PollPointer()
+    TreePointerUpdate(session, pointer)
+    TreeSecondaryPointerUpdate(session, Desktop.PollSecondaryPointer())
+    PointerWheelSend(session, pointer.x, pointer.y, Desktop.DesktopWheelMove())
+    if BeginFrame(session, cast(u64)1, viewport) != FrameStatus.FrameOk { Report("Pass: could not begin frame\n"); return false }
+    if Frame(session, viewport) != 0 { TreeCancel(session); Report("Pass: could not compose frame\n"); return false }
+    if EndFrame(session) != FrameStatus.FrameOk { Report("Pass: could not paint frame\n"); return false }
+    ok := Desktop.EndDesktopFrame()
+    if !ok { Report("Pass: could not present frame\n") }
+    return ok
+}
+
+#program_export
+main :: () -> s32 {
+    if !Desktop.OpenDesktop() { Desktop.CloseDesktop(); Report("Pass: could not open desktop\n"); return 1 }
+    title: [5]u8
+    CopyCString("Pass", title[:])
+    SetTitle(Desktop.window, *title[0])
+    session := SessionOpen()
+    if !SessionValid(session) { Desktop.CloseDesktop(); return 1 }
+    viewport: Rectangle = Rectangle.{0.0, 0.0, 960.0, 600.0}
+    ok: bool = true
+    if Desktop.CaptureRequested() {
+        ok = DrawDesktop(session, viewport)
+        if ok { ok = Desktop.CaptureConfigured() }
+    } else {
+        while ok && Desktop.PollDesktop() {
+            KeyboardModifiersSend(session, Desktop.DesktopModifiers())
+            key := Desktop.DesktopPressedKey()
+            if key != 0 { KeyboardSend(session, key) }
+            codepoint := Desktop.DesktopTypedCodepoint()
+            while codepoint != 0 {
+                TypedCodepointSend(session, codepoint)
+                codepoint = Desktop.DesktopTypedCodepoint()
+            }
+            ok = DrawDesktop(session, viewport)
+            if ok { Desktop.PauseDesktop() }
+        }
+    }
+    Shutdown()
+    CloseSession(session); Desktop.CloseDesktop()
+    if ok { return 0 }
+    return 1
+}

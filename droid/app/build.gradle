@@ -7,19 +7,6 @@ android {
     compileSdk 36
     ndkVersion "28.2.13676358"
 
-    sourceSets {
-        def kryonDir = System.getenv('KRYON_DIR')
-        if (!kryonDir) {
-            throw new GradleException('Set KRYON_DIR to the Ziran-locked Kryon checkout')
-        }
-        main.java.srcDirs += "${kryonDir}/src/platform/android/java"
-    }
-
-    compileOptions {
-        sourceCompatibility JavaVersion.VERSION_1_8
-        targetCompatibility JavaVersion.VERSION_1_8
-    }
-
     def keystorePropsFile = rootProject.file("local.properties")
     def keystoreProps = new Properties()
     if (keystorePropsFile.exists()) {
@@ -57,7 +44,6 @@ android {
         targetSdk 36
         versionCode 10
         versionName "0.2.9"
-        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         // Default to the two realistic phone targets; override with
         // -Pabi=x86_64 etc. for emulator builds.
         def abis = project.findProperty('abi') ?: 'armeabi-v7a,arm64-v8a'
@@ -102,8 +88,19 @@ android {
     }
 }
 
-dependencies {
-    androidTestImplementation 'androidx.test:runner:1.6.2'
-    androidTestImplementation 'androidx.test:rules:1.6.1'
-    androidTestImplementation 'androidx.test.ext:junit:1.2.1'
+// Bundle fonts without adding app or host Java code.
+def prepareFonts = tasks.register('prepareFonts', Copy) {
+    into layout.buildDirectory.dir('generated/passAssets/fonts')
+    from("${System.getenv('KRYON_DIR')}/assets/fonts/LiberationSans-Regular.ttf") { rename { 'ui.ttf' } }
+    from('../../assets/fonts/emoji.ttf')
+    from('../../assets/fonts/emoji-OFL.txt')
 }
+android.sourceSets.main.assets.srcDir(layout.buildDirectory.dir('generated/passAssets'))
+tasks.named('preBuild').configure { dependsOn prepareFonts }
+
+android.sourceSets.main.assets.srcDir(layout.buildDirectory.dir('generated/appAssets'))
+def prepareImages = tasks.register('prepareImages', Copy) {
+    from('../../assets/app/fingerprint.png')
+    into layout.buildDirectory.dir('generated/appAssets')
+}
+tasks.named('preBuild').configure { dependsOn prepareImages }

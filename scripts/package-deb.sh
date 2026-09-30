@@ -10,6 +10,9 @@ out="$root/build/release"
 test -n "$version"
 rm -rf "$stage"
 mkdir -p "$stage/DEBIAN" "$stage/usr/bin" "$stage/usr/share/applications" "$stage/usr/share/metainfo" "$stage/usr/share/icons/hicolor/512x512/apps" "$stage/usr/share/doc/pass" "$out"
+mkdir -p "$stage/usr/share/pass"
+cp "$root/assets/app/fingerprint.png" "$stage/usr/share/pass/fingerprint.png"
+cp "$root/assets/fonts/emoji-OFL.txt" "$stage/usr/share/pass/emoji-OFL.txt"
 cp "$root/build/pass-gui" "$stage/usr/bin/pass-gui"
 cp "$root/packaging/linux/xyz.waozi.pass.desktop" "$stage/usr/share/applications/xyz.waozi.pass.desktop"
 cp "$root/packaging/linux/xyz.waozi.pass.appdata.xml" "$stage/usr/share/metainfo/xyz.waozi.pass.appdata.xml"
@@ -25,7 +28,7 @@ Version: $version
 Architecture: $arch
 Maintainer: Waozi <waozi@proton.me>
 Installed-Size: $installed
-Depends: libc6, libsdl2-2.0-0, libgl1, libgtk-3-0
+Depends: libc6, libsdl2-2.0-0, libcairo2
 Section: utils
 Priority: optional
 Homepage: https://pass.waozi.xyz/

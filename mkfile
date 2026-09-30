@@ -1,15 +1,13 @@
 < /$objtype/mkfile
 
-# Native Plan 9 build of Pass (Kryon libdraw backend). build/plan9 is
-# prepared on the host by: make kry-c-plan9
+# The Ziran core is generated on the host by make plan9-c. Native GUI input
+# awaits Kryon's native libdraw provider; do not compile the removed C app.
+TARG=pass_core.a
+OFILES=build/plan9/core/pass_core.$O
+CFLAGS=-Ibuild/plan9/core
 
-TARG=pass
-ROOT=/sys/src/pass
+$TARG: $OFILES
+	ar vu $target $prereq
 
-gensrc=`{cat $ROOT/build/plan9/generated-c-files.txt}
-appsrc=native/pass_core_zi.c build/plan9/zigen/pass_core.c native/pass_runtime.c native/pass_plan9_main.c
-hostsrc=build/plan9/pass_embedded_assets.c
-APPCPPFLAGS=-I$ROOT/build/plan9/generated -I$ROOT/build/plan9/zigen -I$ROOT/native
-LDLIBS=
-
-< /sys/src/kryon/mk/plan9-app.mk
+build/plan9/core/%.$O: build/plan9/core/%.c
+	$CC $CFLAGS -o $target $prereq

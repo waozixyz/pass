@@ -1,0 +1,385 @@
+#import "pass_core"
+#import "text"
+#import "text_buffer"
+#import "number_text"
+
+host :: #system_library "host_api";
+ReadStore :: (name: string, output: []u8) -> s32 #foreign host;
+WriteStore :: (name: string, value: string) -> bool #foreign host;
+ClipboardWrite :: (value: string) -> bool #foreign host;
+ClipboardMatches :: (value: string) -> bool #foreign host;
+Now :: () -> float64 #foreign host;
+SecureAvailable :: () -> bool #foreign host;
+SecureSaved :: () -> bool #foreign host;
+SecureRequest :: (master: string, save: bool) -> bool #foreign host;
+SecureForget :: () -> bool #foreign host;
+SecurePoll :: (output: []u8) -> s32 #foreign host;
+
+Profile :: struct {
+    name: [64]u8
+    site: [256]u8
+    login: [256]u8
+    exclude: [128]u8
+    length: s32
+    counter: s32
+    lower: bool
+    upper: bool
+    digits: bool
+    symbols: bool
+}
+
+Settings :: struct {
+    auto_copy: bool
+    clear_seconds: s32
+    show_fingerprint: bool
+    length: s32
+    counter: s32
+    lower: bool
+    upper: bool
+    digits: bool
+    symbols: bool
+    exclude: [128]u8
+    theme_source: s32
+    theme_mode: s32
+    theme_id: s32
+    theme_style: s32
+    style_pack: [64]u8
+}
+
+Runtime :: struct {
+    settings: Settings
+    profiles: [64]Profile
+    profile_count: s32
+    generated: [36]u8
+    status: [256]u8
+    unlocked_master: [1024]u8
+    has_unlocked_master: bool
+    secure_action: s32
+    clipboard_clear_at: float64
+}
+
+runtime: Runtime;
+store_buffer: [65536]u8;
+
+SetStatus :: (value: string) { CopyText(value, runtime.status[:]) }
+Status :: () -> string { return TextUntilNul(runtime.status[:]) }
+Generated :: () -> string { return TextUntilNul(runtime.generated[:]) }
+
+Clamp :: (value: s32, low: s32, high: s32) -> s32 {
+    if value < low { return low }
+    if value > high { return high }
+    return value
+}
+
+DefaultSettings :: () -> Settings {
+    settings: Settings
+    settings.length = 16; settings.counter = 1; settings.clear_seconds = 20
+    settings.show_fingerprint = true
+    settings.lower = true; settings.upper = true
+    settings.digits = true; settings.symbols = true
+    settings.theme_mode = 0; settings.theme_style = 2
+    CopyText("material", settings.style_pack[:])
+    return settings
+}
+
+StoreName :: (key: string, output: []u8) -> string {
+    used := AppendText(output, 0, ".kryon_pass_")
+    used = AppendText(output, used, key)
+    used = AppendText(output, used, ".txt")
+    if used < 0 { return "" }
+    return TextUntilNul(output)
+}
+
+ReadSetting :: (key: string, output: []u8) -> bool {
+    name: [256]u8
+    return ReadStore(StoreName(key, name[:]), output) >= 0
+}
+WriteSetting :: (key: string, value: string) -> bool {
+    name: [256]u8
+    return WriteStore(StoreName(key, name[:]), value)
+}
+ReadInteger :: (key: string, fallback: s32) -> s32 {
+    buffer: [64]u8
+    if !ReadSetting(key, buffer[:]) { return fallback }
+    number := ParseNumber(TextUntilNul(buffer[:]))
+    if !number.valid || number.value > 2147483647 || number.value < -2147483647 { return fallback }
+    return cast(s32)number.value
+}
+WriteInteger :: (key: string, value: s32) -> bool {
+    buffer: [32]u8
+    return WriteSetting(key, FormatInteger(cast(s64)value, buffer[:]))
+}
+
+ApplySetting :: (key: string, value: string) {
+    number := ParseNumber(value)
+    if key == "exclude" { CopyText(value, runtime.settings.exclude[:]); return }
+    if key == "style_pack" { CopyText(value, runtime.settings.style_pack[:]); return }
+    if !number.valid || number.value > 2147483647 || number.value < -2147483647 { return }
+    integer := cast(s32)number.value
+    if key == "auto_copy" { runtime.settings.auto_copy = integer != 0 }
+    if key == "clear_after_seconds" { runtime.settings.clear_seconds = integer }
+    if key == "show_fingerprint" { runtime.settings.show_fingerprint = integer != 0 }
+    if key == "length" { runtime.settings.length = integer }
+    if key == "counter" { runtime.settings.counter = integer }
+    if key == "lower" { runtime.settings.lower = integer != 0 }
+    if key == "upper" { runtime.settings.upper = integer != 0 }
+    if key == "digits" { runtime.settings.digits = integer != 0 }
+    if key == "symbols" { runtime.settings.symbols = integer != 0 }
+    if key == "theme_source" { runtime.settings.theme_source = integer }
+    if key == "theme_mode" { runtime.settings.theme_mode = integer }
+    if key == "theme_id" { runtime.settings.theme_id = integer }
+    if key == "theme_style" { runtime.settings.theme_style = integer }
+}
+
+LoadSettings :: () {
+    count := ReadStore("settings.cfg", store_buffer[:])
+    if count > 0 {
+        text := TextView(store_buffer[0:count])
+        start: s32 = 0
+        index: s32 = 0
+        separator: s32 = -1
+        while index <= count {
+            if index == count || text[index] == cast(u8)10 {
+                end := index
+                if end > start && text[end - 1] == cast(u8)13 { end -= 1 }
+                if separator >= start { ApplySetting(text[start:separator], text[separator + 1:end]) }
+                start = index + 1; separator = -1
+            } else {
+                if text[index] == cast(u8)61 && separator < 0 { separator = index }
+            }
+            index += 1
+        }
+    }
+    keys: [15]string = .{"auto_copy", "clear_after_seconds", "show_fingerprint", "length", "counter", "lower", "upper", "digits", "symbols", "exclude", "theme_source", "theme_mode", "theme_id", "theme_style", "style_pack"}
+    for index: 0..14 {
+        buffer: [256]u8
+        if ReadSetting(keys[index], buffer[:]) { ApplySetting(keys[index], TextUntilNul(buffer[:])) }
+    }
+    runtime.settings.length = Clamp(runtime.settings.length, 5, 35)
+    runtime.settings.counter = Clamp(runtime.settings.counter, 1, 999999)
+    runtime.settings.clear_seconds = Clamp(runtime.settings.clear_seconds, 0, 3600)
+    runtime.settings.theme_source = Clamp(runtime.settings.theme_source, 0, 1)
+    runtime.settings.theme_mode = Clamp(runtime.settings.theme_mode, 0, 2)
+    runtime.settings.theme_id = Clamp(runtime.settings.theme_id, 0, 15)
+    runtime.settings.theme_style = Clamp(runtime.settings.theme_style, 0, 2)
+}
+
+SaveSettings :: () -> bool {
+    settings := runtime.settings
+    ok := WriteInteger("auto_copy", cast(s32)settings.auto_copy)
+    ok = WriteInteger("clear_after_seconds", settings.clear_seconds) && ok
+    ok = WriteInteger("show_fingerprint", cast(s32)settings.show_fingerprint) && ok
+    ok = WriteInteger("length", settings.length) && ok
+    ok = WriteInteger("counter", settings.counter) && ok
+    ok = WriteInteger("lower", cast(s32)settings.lower) && ok
+    ok = WriteInteger("upper", cast(s32)settings.upper) && ok
+    ok = WriteInteger("digits", cast(s32)settings.digits) && ok
+    ok = WriteInteger("symbols", cast(s32)settings.symbols) && ok
+    ok = WriteSetting("exclude", TextUntilNul(runtime.settings.exclude[:])) && ok
+    ok = WriteInteger("theme_source", settings.theme_source) && ok
+    ok = WriteInteger("theme_mode", settings.theme_mode) && ok
+    ok = WriteInteger("theme_id", settings.theme_id) && ok
+    ok = WriteInteger("theme_style", settings.theme_style) && ok
+    ok = WriteSetting("style_pack", TextUntilNul(runtime.settings.style_pack[:])) && ok
+    if ok { SetStatus("Settings saved") } else { SetStatus("Could not save settings") }
+    return ok
+}
+
+ProfileOptions :: (profile: Profile) -> PassOptions {
+    options: PassOptions
+    options.length = profile.length
+    options.counter = cast(u64)Clamp(profile.counter, 0, 2147483647)
+    options.lowercase = profile.lower; options.uppercase = profile.upper
+    options.digits = profile.digits; options.symbols = profile.symbols
+    return options
+}
+
+Generate :: (site: string, login: string, master: string, options: PassOptions) -> bool {
+    result := PassGenerate(site, login, master, options)
+    runtime.generated = result.password
+    if !result.valid { SetStatus(result.error); return false }
+    SetStatus("Password generated locally")
+    if runtime.settings.auto_copy { CopyPassword() }
+    return true
+}
+
+CopyPassword :: () -> bool {
+    value := Generated()
+    if value == "" { SetStatus("Generate a password first"); return false }
+    if !ClipboardWrite(value) { SetStatus("Clipboard is unavailable"); return false }
+    runtime.clipboard_clear_at = 0.0
+    if runtime.settings.clear_seconds > 0 {
+        runtime.clipboard_clear_at = Now() + cast(float64)runtime.settings.clear_seconds
+    }
+    SetStatus("Copied")
+    return true
+}
+
+LoadProfiles :: () {
+    runtime.profile_count = 0
+    count := ReadStore("profiles.tsv", store_buffer[:])
+    if count <= 0 { return }
+    text := TextView(store_buffer[0:count])
+    start: s32 = 0
+    index: s32 = 0
+    while index <= count && runtime.profile_count < 64 {
+        if index == count || text[index] == cast(u8)10 {
+            end := index
+            if end > start && text[end - 1] == cast(u8)13 { end -= 1 }
+            line := text[start:end]
+            fields: [10]string
+            field: s32 = 0
+            position: s32 = 0
+            previous: s32 = 0
+            while position <= cast(s32)line.count && field < 10 {
+                if position == cast(s32)line.count || line[position] == cast(u8)9 {
+                    fields[field] = line[previous:position]
+                    field += 1; previous = position + 1
+                }
+                position += 1
+            }
+            if field >= 9 {
+                profile: Profile
+                valid := CopyText(fields[0], profile.name[:]) && CopyText(fields[1], profile.site[:]) && CopyText(fields[2], profile.login[:]) && CopyText(fields[9], profile.exclude[:])
+                numbers: [6]s32
+                for number_index: 0..5 {
+                    number := ParseNumber(fields[number_index + 3])
+                    if !number.valid || number.value > 2147483647 || number.value < -2147483647 { valid = false }
+                    numbers[number_index] = cast(s32)number.value
+                }
+                profile.length = Clamp(numbers[0], 5, 35); profile.counter = numbers[1]
+                profile.lower = numbers[2] != 0; profile.upper = numbers[3] != 0
+                profile.digits = numbers[4] != 0; profile.symbols = numbers[5] != 0
+                if valid && profile.name[0] != cast(u8)0 {
+                    runtime.profiles[runtime.profile_count] = profile
+                    runtime.profile_count += 1
+                }
+            }
+            start = index + 1
+        }
+        index += 1
+    }
+}
+
+WriteProfiles :: () -> bool {
+    used: s32 = 0
+    index: s32 = 0
+    while index < runtime.profile_count {
+        profile := runtime.profiles[index]
+        used = AppendText(store_buffer[:], used, TextUntilNul(profile.name[:]))
+        used = AppendText(store_buffer[:], used, "\t")
+        used = AppendText(store_buffer[:], used, TextUntilNul(profile.site[:]))
+        used = AppendText(store_buffer[:], used, "\t")
+        used = AppendText(store_buffer[:], used, TextUntilNul(profile.login[:]))
+        values: [6]s32 = .{profile.length, profile.counter, cast(s32)profile.lower, cast(s32)profile.upper, cast(s32)profile.digits, cast(s32)profile.symbols}
+        for number_index: 0..5 {
+            buffer: [32]u8
+            used = AppendText(store_buffer[:], used, "\t")
+            used = AppendText(store_buffer[:], used, FormatInteger(cast(s64)values[number_index], buffer[:]))
+        }
+        used = AppendText(store_buffer[:], used, "\t")
+        used = AppendText(store_buffer[:], used, TextUntilNul(profile.exclude[:]))
+        used = AppendText(store_buffer[:], used, "\n")
+        if used < 0 { SetStatus("Could not save profiles"); return false }
+        index += 1
+    }
+    if !WriteStore("profiles.tsv", TextView(store_buffer[0:used])) { SetStatus("Could not save profiles"); return false }
+    return true
+}
+
+SaveProfile :: (profile: Profile) -> bool {
+    candidate := profile
+    name := TextUntilNul(candidate.name[:])
+    if name == "" { SetStatus("Profile name required"); return false }
+    if !SafeField(name) || !SafeField(TextUntilNul(candidate.site[:])) || !SafeField(TextUntilNul(candidate.login[:])) || !SafeField(TextUntilNul(candidate.exclude[:])) { SetStatus("Profile fields cannot contain tabs or newlines"); return false }
+    index: s32 = 0
+    while index < runtime.profile_count {
+        if TextUntilNul(runtime.profiles[index].name[:]) == name { break }
+        index += 1
+    }
+    if index >= 64 { SetStatus("Profile limit reached"); return false }
+    original := runtime.profiles[index]
+    original_count := runtime.profile_count
+    runtime.profiles[index] = candidate
+    if index == runtime.profile_count { runtime.profile_count += 1 }
+    if !WriteProfiles() { runtime.profiles[index] = original; runtime.profile_count = original_count; return false }
+    SetStatus("Profile saved"); return true
+}
+
+DeleteProfile :: (index: s32) -> bool {
+    if index < 0 || index >= runtime.profile_count { SetStatus("Profile not found"); return false }
+    original := runtime.profiles
+    count := runtime.profile_count
+    position := index
+    while position + 1 < runtime.profile_count { runtime.profiles[position] = runtime.profiles[position + 1]; position += 1 }
+    runtime.profile_count -= 1
+    if !WriteProfiles() { runtime.profiles = original; runtime.profile_count = count; return false }
+    runtime.profiles[runtime.profile_count] = Profile.{}
+    SetStatus("Profile deleted"); return true
+}
+
+GenerateProfile :: (index: s32, master: string) -> bool {
+    if index < 0 || index >= runtime.profile_count { SetStatus("Profile not found"); return false }
+    profile := runtime.profiles[index]
+    options := ProfileOptions(profile)
+    options.exclude = TextUntilNul(profile.exclude[:])
+    return Generate(TextUntilNul(profile.site[:]), TextUntilNul(profile.login[:]), master, options)
+}
+
+SaveMaster :: (master: string) -> bool {
+    if master == "" { SetStatus("Enter master password first"); return false }
+    if !SecureAvailable() { SetStatus("Device authentication unavailable"); return false }
+    if !SecureRequest(master, true) { SetStatus("Secure master failed"); return false }
+    runtime.secure_action = 1; SetStatus("Saving master"); return true
+}
+UnlockMaster :: () -> bool {
+    if !SecureSaved() { SetStatus("No saved master password"); return false }
+    if !SecureRequest("", false) { SetStatus("Secure master failed"); return false }
+    runtime.secure_action = 2; SetStatus("Unlock requested"); return true
+}
+ForgetMaster :: () -> bool {
+    if !SecureForget() { SetStatus("Could not forget saved master"); return false }
+    runtime.unlocked_master = .{}
+    runtime.has_unlocked_master = false; runtime.secure_action = 0
+    SetStatus("Saved master forgotten"); return true
+}
+FingerprintStatus :: () -> string {
+    if !SecureAvailable() { return "Device authentication is not available" }
+    if SecureSaved() { return "Saved master uses device authentication" }
+    return "No saved master password"
+}
+HasSavedMaster :: () -> bool { return SecureSaved() }
+CanSaveMaster :: () -> bool { return SecureAvailable() }
+RuntimeNow :: () -> float64 { return Now() }
+
+Tick :: () {
+    buffer: [1024]u8
+    result := SecurePoll(buffer[:])
+    if result == 2 {
+        if runtime.secure_action == 2 {
+            runtime.unlocked_master = buffer
+            runtime.has_unlocked_master = true
+            SetStatus("Master unlocked")
+        } else {
+            SetStatus("Master password saved")
+        }
+        runtime.secure_action = 0
+    }
+    if result == 3 { SetStatus("Secure master failed or cancelled"); runtime.secure_action = 0 }
+    for index: 0..1023 { buffer[index] = cast(u8)0 }
+    if runtime.clipboard_clear_at > 0.0 && Now() >= runtime.clipboard_clear_at {
+        // Do not erase a newer clipboard value owned by another application.
+        if ClipboardMatches(Generated()) { ClipboardWrite(""); SetStatus("Clipboard cleared") }
+        runtime.clipboard_clear_at = 0.0
+    }
+}
+Initialize :: () {
+    runtime = Runtime.{}
+    runtime.settings = DefaultSettings()
+    SetStatus("Ready")
+    LoadSettings(); LoadProfiles()
+}
+Shutdown :: () {
+    runtime.generated = .{}; runtime.unlocked_master = .{}
+    runtime.has_unlocked_master = false
+}

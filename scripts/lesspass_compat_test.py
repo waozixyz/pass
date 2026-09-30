@@ -125,6 +125,13 @@ def main():
         }, "correct horse battery staple"),
     ]
 
+    for mask in range(1, 16):
+        profile = dict(site="matrix.example", login="λ-user", length=5 + mask * 2,
+                       counter=0 if mask == 1 else 2 ** 32 + mask,
+                       lowercase=bool(mask & 1), uppercase=bool(mask & 2),
+                       digits=bool(mask & 4), symbols=bool(mask & 8), exclude="0O1Il")
+        cases.append((f"class mask {mask}", profile, "🐰 test master"))
+
     for name, profile, master in cases:
         expected = lesspass_password(profile, master)
         actual = pass_cli(args.cli, profile, master)

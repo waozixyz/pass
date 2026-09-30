@@ -1,0 +1,65 @@
+#import "text"
+#import "text_buffer"
+
+StoreEntry :: struct { name: [256]u8; value: [8192]u8; }
+entries: [20]StoreEntry;
+entry_count: s32;
+fail_writes: bool;
+clipboard: [256]u8;
+clock: float64;
+secure_available: bool;
+secure_saved: bool;
+secure_result: s32;
+secure_output: [1024]u8;
+
+#program_export
+ReadStore :: (name: string, output: []u8) -> s32 {
+    index: s32 = 0
+    while index < entry_count {
+        if TextUntilNul(entries[index].name[:]) == name {
+            value := TextUntilNul(entries[index].value[:])
+            if !CopyText(value, output) { return -1 }
+            return cast(s32)value.count
+        }
+        index += 1
+    }
+    return -1
+}
+#program_export
+WriteStore :: (name: string, value: string) -> bool {
+    if fail_writes { return false }
+    index: s32 = 0
+    while index < entry_count {
+        if TextUntilNul(entries[index].name[:]) == name { break }
+        index += 1
+    }
+    if index >= 20 { return false }
+    if !CopyText(name, entries[index].name[:]) || !CopyText(value, entries[index].value[:]) { return false }
+    if index == entry_count { entry_count += 1 }
+    return true
+}
+#program_export
+ClipboardWrite :: (value: string) -> bool { return CopyText(value, clipboard[:]) }
+#program_export
+ClipboardMatches :: (value: string) -> bool { return TextUntilNul(clipboard[:]) == value }
+#program_export
+Now :: () -> float64 { return clock }
+#program_export
+SecureAvailable :: () -> bool { return secure_available }
+#program_export
+SecureSaved :: () -> bool { return secure_saved }
+#program_export
+SecureRequest :: (master: string, save: bool) -> bool {
+    if !secure_available { return false }
+    secure_result = 2
+    if save { secure_saved = true; CopyText(master, secure_output[:]) }
+    return true
+}
+#program_export
+SecureForget :: () -> bool { secure_saved = false; return true }
+#program_export
+SecurePoll :: (output: []u8) -> s32 {
+    status := secure_result; secure_result = 0
+    CopyText(TextUntilNul(secure_output[:]), output)
+    return status
+}

@@ -1,0 +1,36 @@
+#import "app"
+#import "host"
+#import "runtime"
+Browser :: #import "Canvas";
+using UI :: #import "Widgets";
+#import "Frame"
+
+#program_export
+main :: () -> s32 {
+    if !BrowserInitialize() || !Browser.OpenCanvas() { return 1 }
+    session := SessionOpen()
+    if !SessionValid(session) { Browser.CloseCanvas(); return 1 }
+    ok: bool = true
+    while ok && Browser.PollCanvas() {
+        KeyboardModifiersSend(session, Browser.CanvasModifiers())
+        key := Browser.CanvasPressedKey()
+        if key != 0 { KeyboardSend(session, key) }
+        codepoint := Browser.CanvasTypedCodepoint()
+        while codepoint != 0 {
+            TypedCodepointSend(session, codepoint)
+            codepoint = Browser.CanvasTypedCodepoint()
+        }
+        Browser.BeginCanvasFrame()
+        pointer := Browser.PollPointer()
+        TreePointerUpdate(session, pointer)
+        TreeSecondaryPointerUpdate(session, Browser.PollSecondaryPointer())
+        PointerWheelSend(session, pointer.x, pointer.y, Browser.CanvasWheelMove())
+        ok = BeginFrame(session, cast(u64)1, Browser.CanvasViewport()) == FrameStatus.FrameOk
+        if ok { ok = Frame(session, Browser.CanvasViewport()) == 0 }
+        if ok { ok = EndFrame(session) == FrameStatus.FrameOk }
+        ok = Browser.EndCanvasFrame() && ok
+    }
+    Shutdown(); CloseSession(session); Browser.CloseCanvas()
+    if ok { return 0 }
+    return 1
+}

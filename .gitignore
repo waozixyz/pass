@@ -1,3 +1,6 @@
 /build/
 /pass
 /ziran.local.toml
+
+__pycache__/
+*.pyc

@@ -1,0 +1,28 @@
+using UI :: #import "Widgets";
+#import "SystemTheme"
+
+InstallTheme :: (palette: SystemPalette, material: bool) {
+    rules: StyleRules
+    rule: StyleRule
+    rule.selector = StyleDefaultSelector()
+    rule.style.fields = cast(u32)StyleField.StyleForeground | cast(u32)StyleField.StyleFocus
+    rule.style.foreground = palette.text; rule.style.focus = palette.selected
+    rules.items[0] = rule; rules.count = 1
+    kinds: [5]s32 = .{StyleKindButton(), StyleKindTextField(), StyleKindSpinbox(), StyleKindCheckbox(), StyleKindScroll()}
+    for index: 0..4 {
+        rule.selector = StyleDefaultSelector(); rule.selector.kind = kinds[index]
+        rule.style.fields = cast(u32)StyleField.StyleForeground | cast(u32)StyleField.StyleBackground | cast(u32)StyleField.StyleBorder | cast(u32)StyleField.StyleFocus | cast(u32)StyleField.StyleRadius | cast(u32)StyleField.StyleBorderWidth | cast(u32)StyleField.StyleMaterial
+        rule.style.background = palette.base; rule.style.border = palette.text
+        rule.style.border_width = 1.0; rule.style.radius = ifx material then 8.0 else 2.0
+        rule.style.material = ifx material then MaterialKind.MaterialLightfield else MaterialKind.MaterialFlat
+        rule.order = rules.count; rules.items[rules.count] = rule; rules.count += 1
+    }
+    rule.selector = StyleDefaultSelector()
+    rule.selector.kind = StyleKindButton()
+    rule.selector.tone = cast(s32)ButtonTone.ButtonToneAccent
+    rule.selector.emphasis = cast(s32)ButtonEmphasis.ButtonEmphasisFilled
+    rule.style.fields = cast(u32)StyleField.StyleForeground | cast(u32)StyleField.StyleBackground | cast(u32)StyleField.StyleBorder
+    rule.style.foreground = palette.selected_text; rule.style.background = palette.selected; rule.style.border = palette.selected
+    rule.order = rules.count; rules.items[rules.count] = rule; rules.count += 1
+    InstallStyleRules(rules)
+}

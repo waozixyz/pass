@@ -1,0 +1,157 @@
+#import "pass_core"
+#import "text"
+#import "byte_text_linux"
+#import "version"
+#import "c_string"
+#import "text_buffer"
+
+libc :: #system_library "libc";
+Write :: (fd: s32, bytes: *u8, count: usize) -> isize #foreign libc "write";
+Read :: (fd: s32, bytes: *u8, count: usize) -> isize #foreign libc "read";
+GetEnv :: (name: *u8) -> *u8 #foreign libc "getenv";
+
+Usage :: #string END
+Usage: pass [OPTIONS] SITE LOGIN [MASTER_PASSWORD]
+
+Derive a site-specific password.
+
+Options:
+  -L, --length N          password length (default 16, min 5, max 35)
+  -C, --counter N         generation counter (default 1)
+  -l, --lowercase         include lowercase letters
+  -u, --uppercase         include uppercase letters
+  -d, --digits            include digits
+  -s, --symbols           include symbols
+      --no-lowercase      exclude lowercase letters
+      --no-uppercase      exclude uppercase letters
+      --no-digits         exclude digits
+      --no-symbols        exclude symbols
+      --exclude CHARS     remove characters from all enabled classes
+  -p, --prompt            read the master password from stdin
+  -c, --copy              reserved for app clipboard support
+      --no-copy           print instead of copying
+  -v, --version           show version
+  -h, --help              show this help
+END;
+
+Print :: (fd: s32, value: string) {
+    buffer: [4096]u8
+    offset: s32 = 0
+    while offset < cast(s32)value.count {
+        count: s32 = cast(s32)value.count - offset
+        if count > 4096 { count = 4096 }
+        index: s32 = 0
+        while index < count { buffer[index] = value[offset + index]; index += 1 }
+        written: s32 = 0
+        while written < count {
+            result: isize = Write(fd, *buffer[written], cast(usize)(count - written))
+            if result <= cast(isize)0 { return }
+            written += cast(s32)result
+        }
+        offset += count
+    }
+}
+
+Error :: (message: string) -> s32 {
+    Print(2, "pass: "); Print(2, message); Print(2, "\n")
+    return 2
+}
+
+ReadMaster :: (buffer: []u8) -> bool {
+    used: s32 = 0
+    while used < cast(s32)buffer.count - 1 {
+        byte: u8
+        if Read(0, *byte, cast(usize)1) != cast(isize)1 { return used > 0 }
+        if byte == cast(u8)10 {
+            if used > 0 && buffer[used - 1] == cast(u8)13 { used -= 1 }
+            buffer[used] = cast(u8)0
+            return true
+        }
+        if byte == cast(u8)0 { return false }
+        buffer[used] = byte
+        used += 1
+    }
+    return false
+}
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    options: PassOptions
+    options.length = 16; options.counter = cast(u64)1
+    options.lowercase = true; options.uppercase = true
+    options.digits = true; options.symbols = true
+    prompt: bool; copy: bool; no_copy: bool; version: bool
+    positional: [3]string
+    count: s32 = 0
+    index: s32 = 1
+    while index < argc {
+        arg := TextFromCString(argv[index])
+        if arg == "-h" || arg == "--help" { Print(1, Usage); return 0 }
+        if arg == "-v" || arg == "--version" { version = true }
+        else if arg == "-L" || arg == "--length" || arg == "-C" ||
+        arg == "--counter" || arg == "--exclude" {
+            if index + 1 >= argc {
+                Print(2, "pass: "); Print(2, arg); Print(2, " requires a value\n")
+                Print(2, Usage); return 2
+            }
+            index += 1
+            value := TextFromCString(argv[index])
+            if arg == "--exclude" { options.exclude = value }
+            else {
+                number := ParseNumber(value)
+                if !number.valid { Print(2, Usage); return 2 }
+                if arg == "-L" || arg == "--length" {
+                    if number.value > 2147483647 || number.value < -2147483647 { Print(2, Usage); return 2 }
+                    options.length = cast(s32)number.value
+                } else {
+                    if number.value < 0 { number.value = 0 }
+                    options.counter = cast(u64)number.value
+                }
+            }
+        } else {
+            handled: bool = true
+            if arg == "-l" || arg == "--lowercase" { options.lowercase = true }
+            else if arg == "-u" || arg == "--uppercase" { options.uppercase = true }
+            else if arg == "-d" || arg == "--digits" { options.digits = true }
+            else if arg == "-s" || arg == "--symbols" { options.symbols = true }
+            else if arg == "--no-lowercase" { options.lowercase = false }
+            else if arg == "--no-uppercase" { options.uppercase = false }
+            else if arg == "--no-digits" { options.digits = false }
+            else if arg == "--no-symbols" { options.symbols = false }
+            else if arg == "-p" || arg == "--prompt" { prompt = true }
+            else if arg == "-c" || arg == "--copy" { copy = true }
+            else if arg == "--no-copy" { no_copy = true }
+            else { handled = false }
+            if !handled {
+                if arg.count > 0 && arg[0] == cast(u8)45 { return Error("unknown option") }
+                if count >= 3 { return Error("too many positional arguments") }
+                positional[count] = arg; count += 1
+            }
+        }
+        index += 1
+    }
+    if version { Print(1, "pass "); Print(1, Version); Print(1, "\n"); return 0 }
+    if count < 2 { Print(2, Usage); return 2 }
+    if copy && !no_copy { return Error("--copy is not available in the CLI; use the app") }
+    master: [1024]u8
+    if count == 3 {
+        if !CopyText(positional[2], master[:]) { return Error("master password is too long") }
+    } else {
+        name: [32]u8
+        CopyCString("LESSPASS_MASTER_PASSWORD", name[:])
+        environment: *u8 = GetEnv(*name[0])
+        if !prompt && environment != null {
+            if !CopyText(TextFromCString(environment), master[:]) { return Error("master password is too long") }
+        } else {
+            if !ReadMaster(master[:]) { return Error("missing master password") }
+        }
+    }
+    generated := PassGenerate(positional[0], positional[1], TextUntilNul(master[:]), options)
+    for position: 0..1023 { master[position] = cast(u8)0 }
+    if !generated.valid {
+        Print(2, "pass: "); Print(2, generated.error); Print(2, "\n"); return 1
+    }
+    Print(1, TextView(generated.password[0:generated.length])); Print(1, "\n")
+    for position: 0..35 { generated.password[position] = cast(u8)0 }
+    return 0
+}

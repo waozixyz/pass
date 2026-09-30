@@ -6,9 +6,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Pass</title>
   <meta name="theme-color" content="#f7ede2">
-  <link rel="manifest" href="/manifest.webmanifest">
-  <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png">
-  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
   <style>
     html, body {
       width: 100%;
@@ -37,54 +37,14 @@
       outline: 0;
       background: #f7ede2;
     }
-    .loading-screen {
-      position: fixed;
-      inset: 0;
-      z-index: 4;
-      display: grid;
-      place-items: center;
-      padding: 24px;
-      box-sizing: border-box;
-      background: #f7ede2;
-      transition: opacity 180ms ease, visibility 180ms ease;
-    }
-    .loading-screen.is-hidden {
-      opacity: 0;
-      visibility: hidden;
-      pointer-events: none;
-    }
-    .loading-panel {
-      display: grid;
-      justify-items: center;
-      gap: 12px;
-      text-align: center;
-    }
-    .loading-panel img {
-      width: 76px;
-      height: 76px;
-      border-radius: 8px;
-      image-rendering: pixelated;
-    }
-    #status {
-      min-height: 20px;
-      color: #9b8b7c;
-      font-size: 13px;
-    }
   </style>
 </head>
 <body>
-  <div class="loading-screen" id="loading-screen" role="status" aria-live="polite">
-    <div class="loading-panel">
-      <img src="/icons/icon-192.png" alt="" width="76" height="76">
-      <strong>Pass</strong>
-      <div id="status">Loading app...</div>
-    </div>
-  </div>
   <div class="canvas-stage">
     <div class="canvas-frame" id="canvas-frame">
-      <canvas class="emscripten" id="canvas" width="720" height="740" oncontextmenu="event.preventDefault()" tabindex="-1"></canvas>
+      <canvas class="emscripten" id="canvas" width="720" height="740" tabindex="-1"></canvas>
     </div>
   </div>
-  <script src="app.js"></script>
+  <script src="index.js"></script>
 </body>
 </html>

@@ -1,0 +1,83 @@
+#import "app"
+#import "host"
+#import "runtime"
+#import "android"
+#import "android_input"
+#import "c_string"
+#import "pass_core"
+#import "AndroidSurface"
+Render :: #import "Raylib";
+using UI :: #import "Widgets";
+#import "Frame"
+
+raylib :: #system_library "raylib";
+InitWindow :: (width: s32, height: s32, title: *u8) #foreign raylib "InitWindow";
+IsWindowReady :: () -> bool #foreign raylib "IsWindowReady";
+SetTargetFPS :: (fps: s32) #foreign raylib "SetTargetFPS";
+log_library :: #system_library "log";
+WriteLog :: (priority: s32, tag: *u8, message: *u8) -> s32 #foreign log_library "__android_log_write";
+Report :: (message: string) {
+    tag: [5]u8; text: [128]u8
+    if CopyCString("Pass", tag[:]) && CopyCString(message, text[:]) { WriteLog(6, *tag[0], *text[0]) }
+}
+
+// The NDK glue creates the rendering thread. Kryon's owned parser values
+// need more room than Android's small default pthread stack.
+libc :: #system_library "libc";
+AttributeInit :: #type (*void) -> s32 #c_call;
+RealAttributesInit :: (attributes: *void) -> s32 #foreign libc "__real_pthread_attr_init";
+SetThreadStack :: (attributes: *void, size: usize) -> s32 #foreign libc "pthread_attr_setstacksize";
+#program_export "__wrap_pthread_attr_init"
+NativeThreadAttributes :: (attributes: *void) -> s32 {
+    status := RealAttributesInit(attributes)
+    if status != 0 { return status }
+    return SetThreadStack(attributes, cast(usize)16777216)
+}
+
+#program_export
+main :: () -> s32 {
+    thread_adapter: AttributeInit = NativeThreadAttributes
+    title: [5]u8
+    CopyCString("Pass", title[:])
+    InitWindow(0, 0, *title[0])
+    if !IsWindowReady() { return 1 }
+    if !AndroidInitialize() { Render.CloseRaylib(); return 1 }
+    if !AndroidTextInitialize() { Render.CloseRaylib(); return 1 }
+    SetTargetFPS(60)
+    Render.LoadTypefaceFile("ui", "fonts/ui.ttf", null, 0)
+    Render.SelectTypeface("ui")
+    SetAndroidViewportPolicy(AndroidViewportPolicyResizeForIme())
+    session := SessionOpen()
+    if !SessionValid(session) { Render.CloseRaylib(); return 1 }
+    ok: bool = true
+    while ok && Render.PollRaylib() {
+        width: s32; height: s32
+        SyncAndroidSurfaceSize(*width, *height)
+        zoom := cast(float32)width / 390.0
+        if zoom < 1.0 { zoom = 1.0 }
+        Render.RaylibSetZoom(zoom)
+        viewport: AndroidViewport
+        ResolveAndroidViewport(width, height, AndroidViewportPolicyResizeForIme(), *viewport)
+        bounds: Rectangle = Rectangle.{cast(float32)viewport.x / zoom, cast(float32)viewport.y / zoom, cast(float32)viewport.width / zoom, cast(float32)viewport.height / zoom}
+        KeyboardModifiersSend(session, Render.RaylibModifiers())
+        key := Render.RaylibPressedKey()
+        if key != 0 { KeyboardSend(session, key) }
+        codepoint := Render.RaylibTypedCodepoint()
+        while codepoint != 0 { TypedCodepointSend(session, codepoint); codepoint = Render.RaylibTypedCodepoint() }
+        Render.BeginRaylibFrame()
+        pointer := Render.PollPointer()
+        TreePointerUpdate(session, pointer)
+        TreeSecondaryPointerUpdate(session, Render.PollSecondaryPointer())
+        PointerWheelSend(session, pointer.x, pointer.y, Render.RaylibWheelMove())
+        ok = BeginFrame(session, cast(u64)1, bounds) == FrameStatus.FrameOk
+        if !ok { Report("Could not begin frame") }
+        if ok { ok = Frame(session, bounds) == 0; if !ok { Report("Could not compose frame") } }
+        if ok { ok = EndFrame(session) == FrameStatus.FrameOk; if !ok { Report("Could not commit frame") } }
+        ok = Render.EndRaylibFrame() && ok
+        if !ok { Report("Could not present frame") }
+    }
+    HostKeyboard(false)
+    Shutdown(); CloseSession(session); Render.CloseRaylib()
+    if ok { return 0 }
+    return 1
+}

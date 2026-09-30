@@ -39,10 +39,15 @@ jobs:
           "$HOME/emsdk/emsdk" activate latest
           echo "EM_CONFIG=$HOME/emsdk/.emscripten" >> "$GITHUB_ENV"
           echo "$HOME/emsdk/upstream/emscripten" >> "$GITHUB_PATH"
-      - name: Test C CLI, core, and Kry generator
+      - name: Test Ziran CLI, core, and native/portable app runtime
         run: make test
-      - name: Build browser app
-        run: make site
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Test browser input, storage, and offline launch
+        env:
+          PASS_WEB_SMOKE_BROWSER: google-chrome
+        run: make web-smoke
       - name: Verify generated site
         run: |
           test -s build/site/index.html
@@ -91,6 +96,8 @@ jobs:
           sudo apt-get install -y "${packages[@]}"
       - name: Build GUI
         run: make gui
+      - name: Render GUI on private display
+        run: make gui-smoke
       - name: Build Debian package
         run: make package-deb
       - uses: actions/upload-artifact@v4
@@ -128,7 +135,7 @@ jobs:
           path: |
             droid/app/.cxx
             droid/app/build/intermediates/cxx
-          key: android-native-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('app/*.kry', 'droid/app/src/main/cpp/CMakeLists.txt', 'droid/app/build.gradle', 'native/*.c', 'droid/app/src/main/cpp/*.c', 'ziran.lock') }}
+          key: android-native-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('src/*.zi', 'droid/app/src/main/cpp/CMakeLists.txt', 'droid/app/build.gradle', 'pass_core.zi', 'ziran.lock') }}
           restore-keys: |
             android-native-${{ runner.os }}-${{ runner.arch }}-
       - name: Install Android SDK components
@@ -144,7 +151,7 @@ jobs:
           make android-debug
 
   android-input-test:
-    name: Android input instrumentation
+    name: Android NativeActivity input
     runs-on: ubuntu-latest
     timeout-minutes: 60
     needs: guard-package-urls
@@ -169,12 +176,11 @@ jobs:
           target: default
           emulator-boot-timeout: 900
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -no-metrics
-          script: make android-input-test
+          script: make android-emulator android-input-test
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
           name: android-input-test-reports
           path: |
-            droid/app/build/reports/androidTests/
-            droid/app/build/outputs/androidTest-results/
+            build/android-input/
           if-no-files-found: ignore

@@ -6,7 +6,7 @@ Features:
 
 • Deterministic, LessPass-compatible password generation
 • Configurable length, counter, character classes, and excluded characters
-• Optional fingerprint unlock with the master password held in secure storage
+• Optional device authentication with the master password held in secure storage
 • No analytics, no tracking, no network access
 
 Pass is an independent implementation of the LessPass algorithm. Compatibility does not imply endorsement by or affiliation with the LessPass project.

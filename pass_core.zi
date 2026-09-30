@@ -30,6 +30,10 @@ PassResult :: struct {
 EntropyState :: struct {
     bytes: [32]u8
 }
+EntropyResult :: struct {
+    entropy: EntropyState
+    value: s32
+}
 
 master_emoji_codepoints: [64]s32 = .[
 0x1F436, 0x1F431, 0x1F42D, 0x1F439, 0x1F430, 0x1F98A, 0x1F43B, 0x1F43C,
@@ -331,7 +335,7 @@ PassAppendCounter :: (salt: []u8, offset: s32, counter: u64) -> s32 {
     return offset + digit_count
 }
 
-EntropyTake :: (entropy: *EntropyState, divisor: s32) -> s32 {
+EntropyTake :: (entropy: EntropyState, divisor: s32) -> EntropyResult {
     carry: u32 = 0
     index: s32 = 0
     while index < 32 {
@@ -341,7 +345,7 @@ EntropyTake :: (entropy: *EntropyState, divisor: s32) -> s32 {
         carry = current % cast(u32)divisor
         index += 1
     }
-    return cast(s32)carry
+    return EntropyResult.{entropy, cast(s32)carry}
 }
 
 PassGenerate :: (site: string, login: string, master: string,
@@ -408,7 +412,7 @@ PassGenerate :: (site: string, login: string, master: string,
         salt_length += 1
         site_index += 1
     }
-    if salt_length + cast(s32)login.count >= cast(s32)salt.count {
+    if cast(s64)salt_length + login.count + 16 > salt.count {
         return PassFailure("login is too long")
     }
     login_index: s32 = 0
@@ -426,22 +430,26 @@ PassGenerate :: (site: string, login: string, master: string,
     password: [36]u8
     generated_index: s32 = 0
     while generated_index < password_length {
-        password[generated_index] = alphabet[EntropyTake(
-            *entropy, alphabet_count)]
+        taken := EntropyTake(entropy, alphabet_count)
+        entropy = taken.entropy
+        password[generated_index] = alphabet[taken.value]
         generated_index += 1
     }
 
     required: [4]u8
     required_index: s32 = 0
     while required_index < class_count {
-        required[required_index] = classes[required_index].bytes[EntropyTake(
-            *entropy, classes[required_index].count)]
+        taken := EntropyTake(entropy, classes[required_index].count)
+        entropy = taken.entropy
+        required[required_index] = classes[required_index].bytes[taken.value]
         required_index += 1
     }
 
     insertion_index: s32 = 0
     while insertion_index < class_count {
-        position := EntropyTake(*entropy, password_length)
+        taken := EntropyTake(entropy, password_length)
+        entropy = taken.entropy
+        position := taken.value
         move_index := password_length
         while move_index > position {
             password[move_index] = password[move_index - 1]

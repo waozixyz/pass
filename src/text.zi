@@ -1,0 +1,52 @@
+#import "c_string"
+#import "text_buffer"
+
+CopyText :: (value: string, output: []u8) -> bool {
+    if output.count == 0 { return false }
+    if value.count >= output.count { return false }
+    return CopyCString(value, output)
+}
+
+AppendText :: (output: []u8, used: s32, value: string) -> s32 {
+    if used < 0 || cast(s64)used + cast(s64)value.count >= cast(s64)output.count { return -1 }
+    index: s32 = 0
+    while index < cast(s32)value.count {
+        output[used + index] = value[index]
+        index += 1
+    }
+    used += cast(s32)value.count
+    output[used] = cast(u8)0
+    return used
+}
+
+Number :: struct { valid: bool; value: s64; }
+
+ParseNumber :: (text: string) -> Number {
+    result: Number
+    if text.count == 0 { return result }
+    index: s32 = 0
+    negative: bool = text[0] == cast(u8)45
+    if negative || text[0] == cast(u8)43 { index = 1 }
+    if index == cast(s32)text.count { return result }
+    while index < cast(s32)text.count {
+        byte: u8 = text[index]
+        if byte < cast(u8)48 || byte > cast(u8)57 { return result }
+        digit: s64 = cast(s64)(byte - cast(u8)48)
+        if result.value > (9223372036854775807 - digit) / 10 { return Number.{} }
+        result.value = result.value * 10 + digit
+        index += 1
+    }
+    if negative { result.value = 0 - result.value }
+    result.valid = true
+    return result
+}
+
+SafeField :: (value: string) -> bool {
+    index: s32 = 0
+    while index < cast(s32)value.count {
+        if value[index] == cast(u8)0 || value[index] == cast(u8)9 ||
+        value[index] == cast(u8)10 || value[index] == cast(u8)13 { return false }
+        index += 1
+    }
+    return true
+}

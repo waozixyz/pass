@@ -1,0 +1,252 @@
+#import "c_string"
+#import "text_buffer"
+#import "byte_text_linux"
+using UI :: #import "Widgets";
+#import "SystemTheme"
+fingerprint_path: [2048]u8;
+#if !#defined(PLATFORM_WEB) && !#defined(ANDROID_BUILD) {
+    assets_libc :: #system_library "libc";
+    AssetReadable :: (path: *u8, mode: s32) -> s32 #foreign assets_libc "access";
+    AssetEnvironment :: (name: *u8) -> *u8 #foreign assets_libc "getenv";
+    ExecutablePath :: (path: *u8, output: *u8, limit: usize) -> isize #foreign assets_libc "readlink";
+}
+#program_export
+HostFingerprintPath :: () -> string {
+    #if #defined(PLATFORM_WEB) {
+        return "/fingerprint.png"
+    } else #if #defined(ANDROID_BUILD) {
+        return "fingerprint.png"
+    } else {
+        if fingerprint_path[0] != cast(u8)0 { return TextUntilNul(fingerprint_path[:]) }
+        proc: [32]u8
+        CopyCString("/proc/self/exe", proc[:])
+        count := ExecutablePath(*proc[0], *fingerprint_path[0], cast(usize)1800)
+        if count > 0 {
+            after := cast(s32)count
+            while after > 0 && fingerprint_path[after - 1] != cast(u8)47 { after -= 1 }
+            suffixes: [3]string = .{"fingerprint.png", "../assets/app/fingerprint.png", "../share/pass/fingerprint.png"}
+            for index: 0..2 {
+                CopyCString(suffixes[index], fingerprint_path[after:])
+                if AssetReadable(*fingerprint_path[0], 4) == 0 { return TextUntilNul(fingerprint_path[:]) }
+            }
+        }
+        roots: [2]string = .{"XDG_DATA_HOME", "HOME"}
+        for index: 0..1 {
+            CopyCString(roots[index], proc[:])
+            base := AssetEnvironment(*proc[0])
+            if base != null {
+                value := TextFromCString(base)
+                if value.count < 1800 && CopyCString(value, fingerprint_path[:]) {
+                    suffix := ifx index == 0 then "/pass/fingerprint.png" else "/.local/share/pass/fingerprint.png"
+                    CopyCString(suffix, fingerprint_path[cast(s32)value.count:])
+                    if AssetReadable(*fingerprint_path[0], 4) == 0 { return TextUntilNul(fingerprint_path[:]) }
+                }
+            }
+        }
+        CopyCString("assets/app/fingerprint.png", fingerprint_path[:])
+        return TextUntilNul(fingerprint_path[:])
+    }
+}
+#if !#defined(PLATFORM_WEB) && !#defined(ANDROID_BUILD) {
+    LinuxTheme :: #import "SystemThemeLinux";
+    host_palette: SystemPalette;
+    theme_loaded: bool;
+    theme_read_at: float64;
+}
+
+#if #defined(PLATFORM_WEB) {
+    #import "web"
+    sync_done: bool;
+    sync_failed: bool;
+
+    StorageSynced :: (context: s32, error: s32, second: s32, third: s32) {
+        sync_failed = !WebIsUndefined(WebValueOf(error))
+        sync_done = true
+    }
+    BrowserSync :: (populate: bool) -> bool {
+        scope := WebScope()
+        fs := WebGetObject(WebModule, WebName("FS"))
+        callback := WebFunction(StorageSynced, 0)
+        sync_done = false; sync_failed = false
+        WebCall2(fs, WebName("syncfs"), WebBool(populate), WebObject(callback))
+        ok := !WebFailed()
+        while ok && !sync_done { WebSleep(1) }
+        WebRelease(callback)
+        WebEnd(scope)
+        return ok && !sync_failed
+    }
+    BrowserInitialize :: () -> bool {
+        scope := WebScope()
+        fs := WebGetObject(WebModule, WebName("FS"))
+        backend := WebGetObject(WebModule, WebName("IDBFS"))
+        WebCall1(fs, WebName("mkdir"), WebText("/pass-data"))
+        options := WebNewObject()
+        args: [3]WebValue = .{WebObject(backend), WebObject(options), WebText("/pass-data")}
+        WebCall(fs, WebName("mount"), *args[0], 3)
+        ok := !WebFailed()
+        WebCall1(fs, WebName("chdir"), WebText("/pass-data"))
+        ok = ok && !WebFailed()
+        WebEnd(scope)
+        scope = WebScope()
+        navigator := WebGetObject(WebGlobal, WebName("navigator"))
+        worker := WebGetObject(navigator, WebName("serviceWorker"))
+        if worker != 0 { WebCall1(worker, WebName("register"), WebText("sw.js")) }
+        WebEnd(scope)
+        return ok && BrowserSync(true)
+    }
+    #program_export
+    Now :: () -> float64 {
+        scope := WebScope()
+        performance := WebGetObject(WebGlobal, WebName("performance"))
+        value := WebAsNumber(WebCall0(performance, WebName("now"))) / 1000.0
+        WebEnd(scope)
+        return value
+    }
+    #program_export
+    HostDark :: () -> bool {
+        scope := WebScope()
+        media := WebAsObject(WebCall1(WebGlobal, WebName("matchMedia"), WebText("(prefers-color-scheme: dark)")))
+        dark := WebAsBool(WebGet(media, WebName("matches")))
+        WebEnd(scope)
+        return dark
+    }
+}
+
+#if true {
+    #import "timer_linux"
+    libc :: #system_library "libc";
+    OpenFile :: (path: *u8, mode: *u8) -> *void #foreign libc "fopen";
+    CloseFile :: (file: *void) -> s32 #foreign libc "fclose";
+    ReadFile :: (output: *u8, size: usize, count: usize, file: *void) -> usize #foreign libc "fread";
+    WriteFile :: (input: *u8, size: usize, count: usize, file: *void) -> usize #foreign libc "fwrite";
+    FileError :: (file: *void) -> s32 #foreign libc "ferror";
+    RenameFile :: (source: *u8, destination: *u8) -> s32 #foreign libc "rename";
+    FileDescriptor :: (file: *void) -> s32 #foreign libc "fileno";
+    SetPrivate :: (fd: s32, mode: s32) -> s32 #foreign libc "fchmod";
+    Flush :: (file: *void) -> s32 #foreign libc "fflush";
+    Sync :: (fd: s32) -> s32 #foreign libc "fsync";
+    Environment :: (name: *u8) -> *u8 #foreign libc "getenv";
+
+    #program_export
+    ReadStore :: (name: string, output: []u8) -> s32 {
+        path: [256]u8
+        mode: [3]u8
+        if output.count < 2 || !CopyCString(name, path[:]) || !CopyCString("rb", mode[:]) { return -1 }
+        file := OpenFile(*path[0], *mode[0])
+        if file == null {
+            #if #defined(ANDROID_BUILD) {
+                return AndroidReadPreference(name, output)
+            }
+            return -1
+        }
+        count := ReadFile(*output[0], cast(usize)1, cast(usize)output.count - cast(usize)1, file)
+        ok := FileError(file) == 0
+        // Reject an oversized file rather than loading a truncated profile list.
+        extra: u8
+        if ReadFile(*extra, cast(usize)1, cast(usize)1, file) != cast(usize)0 { ok = false }
+        if CloseFile(file) != 0 { ok = false }
+        if !ok { return -1 }
+        output[cast(s64)count] = cast(u8)0
+        return cast(s32)count
+    }
+    #program_export
+    WriteStore :: (name: string, value: string) -> bool {
+        path: [256]u8
+        temporary: [272]u8
+        mode: [3]u8
+        if !CopyCString(name, path[:]) || name.count > 250 || !CopyCString("wb", mode[:]) { return false }
+        index: s32 = 0
+        while index < cast(s32)name.count { temporary[index] = name[index]; index += 1 }
+        temporary[index] = cast(u8)46; temporary[index + 1] = cast(u8)116
+        temporary[index + 2] = cast(u8)109; temporary[index + 3] = cast(u8)112
+        file := OpenFile(*temporary[0], *mode[0])
+        if file == null { return false }
+        ok := SetPrivate(FileDescriptor(file), 384) == 0
+        offset: s32 = 0
+        while offset < cast(s32)value.count && ok {
+            buffer: [4096]u8
+            count: s32 = cast(s32)value.count - offset
+            if count > 4096 { count = 4096 }
+            for index: 0..4095 {
+                if index < cast(s64)count { buffer[index] = value[cast(s64)offset + index] }
+            }
+            ok = WriteFile(*buffer[0], cast(usize)1, cast(usize)count, file) == cast(usize)count
+            offset += count
+        }
+        if Flush(file) != 0 || Sync(FileDescriptor(file)) != 0 { ok = false }
+        if CloseFile(file) != 0 { ok = false }
+        if !ok { return false }
+        if RenameFile(*temporary[0], *path[0]) != 0 { return false }
+        #if #defined(PLATFORM_WEB) {
+            return BrowserSync(false)
+        }
+        #if !#defined(PLATFORM_WEB) {
+            return true
+        }
+    }
+    #if !#defined(PLATFORM_WEB) {
+        #program_export
+        Now :: () -> float64 { return cast(float64)MonotonicMilliseconds() / 1000.0 }
+        #program_export
+        HostDark :: () -> bool {
+            #if #defined(ANDROID_BUILD) {
+                return AndroidDark()
+            }
+            #if !#defined(ANDROID_BUILD) {
+                return HostPalette().dark
+            }
+        }
+    }
+}
+
+#program_export
+ClipboardWrite :: (value: string) -> bool {
+    #if #defined(ANDROID_BUILD) {
+        return AndroidClipboardWrite(value)
+    }
+    #if !#defined(ANDROID_BUILD) {
+        return SystemClipboardSet(value)
+    }
+}
+#program_export
+ClipboardMatches :: (value: string) -> bool {
+    output: [4096]u8
+    #if #defined(ANDROID_BUILD) {
+        return value != "" && AndroidClipboardRead(output[:]) == value
+    }
+    #if !#defined(ANDROID_BUILD) {
+        return value != "" && SystemClipboardText(output[:]) == value
+    }
+}
+
+#if #defined(ANDROID_BUILD) {
+    #import "android"
+}
+#if !#defined(ANDROID_BUILD) {
+    #program_export
+    HostKeyboard :: (visible: bool) {}
+    #program_export
+    SecureAvailable :: () -> bool { return false }
+    #program_export
+    SecureSaved :: () -> bool { return false }
+    #program_export
+    SecureRequest :: (master: string, save: bool) -> bool { return false }
+    #program_export
+    SecureForget :: () -> bool { return true }
+    #program_export
+    SecurePoll :: (output: []u8) -> s32 { return 0 }
+}
+
+#program_export
+HostPalette :: () -> SystemPalette {
+    #if !#defined(PLATFORM_WEB) && !#defined(ANDROID_BUILD) {
+        if !theme_loaded || Now() - theme_read_at > 5.0 {
+            host_palette = LinuxTheme.SystemPaletteRead()
+            theme_read_at = Now(); theme_loaded = true
+        }
+        return host_palette
+    }
+    #if #defined(PLATFORM_WEB) || #defined(ANDROID_BUILD) {
+        return SystemPaletteFallback(HostDark())
+    }
+}

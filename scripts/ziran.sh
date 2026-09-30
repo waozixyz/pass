@@ -6,6 +6,14 @@ set -eu
 root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 cd "$root"
 
+# Local development uses the real root repository, never another checkout.
+if [ -f ziran.local.toml ]; then
+    local_root=$(python3 -c 'import tomllib; print(tomllib.load(open("ziran.local.toml", "rb")).get("overrides", {}).get("ziran", ""))')
+    if [ -n "$local_root" ]; then
+        exec "$local_root/build/bin/ziran" "$@"
+    fi
+fi
+
 toolchain_field() {
     python3 -c 'import json, sys; print(json.load(open("ziran.lock"))["toolchain"][sys.argv[1]])' "$1"
 }

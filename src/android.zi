@@ -1,0 +1,420 @@
+// NativeActivity, AndroidKeyStore, and device authentication are called
+// directly through JNI. No application Java or C implementation is needed.
+#import "android_jni"
+#import "c_string"
+#import "byte_text_linux"
+#import "text_buffer"
+#import "utf8"
+#import "pass_core"
+
+libc :: #system_library "libc";
+ChangeDirectory :: (path: *u8) -> s32 #foreign libc "chdir";
+android :: #system_library "android";
+ShowKeyboard :: (activity: *NativeActivity, flags: u32) #foreign android "ANativeActivity_showSoftInput";
+HideKeyboard :: (activity: *NativeActivity, flags: u32) #foreign android "ANativeActivity_hideSoftInput";
+
+store :: #system_library "pass_host";
+ReadStore :: (name: string, output: []u8) -> s32 #foreign store;
+WriteStore :: (name: string, value: string) -> bool #foreign store;
+Now :: () -> float64 #foreign store;
+
+keyboard_visible: bool;
+secure_pending: s32;
+secure_deadline: float64;
+secure_master: [1024]u8;
+
+AndroidInitialize :: () -> bool {
+    path := ActivityInternalDataPath()
+    return path != null && ChangeDirectory(path) == 0
+}
+
+#program_export
+HostKeyboard :: (visible: bool) {
+    if visible == keyboard_visible { return }
+    app := NativeApp()
+    if app == null || app.activity == null { return }
+    keyboard_visible = visible
+    if visible { ShowKeyboard(app.activity, cast(u32)0) }
+    else { HideKeyboard(app.activity, cast(u32)0) }
+}
+
+// Consume Java exceptions at each call boundary. Unsupported API methods
+// and failed authentication must return failure, never leave JNI poisoned.
+JniOk :: (env: *JniEnv) -> bool {
+    if env.functions.ExceptionCheck(env) == cast(u8)0 { return true }
+    env.functions.ExceptionClear(env)
+    return false
+}
+
+Class :: (env: *JniEnv, name: string) -> *void {
+    text: [192]u8
+    if !CopyCString(name, text[:]) { return null }
+    result := env.functions.FindClass(env, *text[0])
+    if !JniOk(env) { return null }
+    return result
+}
+Method :: (env: *JniEnv, object: *void, name: string, signature: string, static: bool) -> *void {
+    if object == null { return null }
+    type: *void = object
+    if !static { type = env.functions.GetObjectClass(env, object) }
+    label: [96]u8; descriptor: [256]u8
+    if type == null || !CopyCString(name, label[:]) || !CopyCString(signature, descriptor[:]) { return null }
+    result: *void
+    if static { result = env.functions.GetStaticMethodID(env, type, *label[0], *descriptor[0]) }
+    else { result = env.functions.GetMethodID(env, type, *label[0], *descriptor[0]) }
+    if !JniOk(env) { return null }
+    return result
+}
+TextObject :: (env: *JniEnv, value: string) -> *void {
+    text: [4096]u16
+    count: s32 = 0; index: s32 = 0
+    while index < cast(s32)value.count {
+        decoded := Decode(value, index)
+        codepoint := decoded.value
+        if count + 2 >= 4096 { return null }
+        if codepoint <= cast(u32)65535 { text[count] = cast(u16)codepoint; count += 1 }
+        else {
+            codepoint -= cast(u32)65536
+            text[count] = cast(u16)(cast(u32)55296 + (codepoint >> cast(u32)10))
+            text[count + 1] = cast(u16)(cast(u32)56320 + (codepoint & cast(u32)1023))
+            count += 2
+        }
+        index = decoded.after
+    }
+    return env.functions.NewString(env, *text[0], count)
+}
+CopyJavaText :: (env: *JniEnv, value: *void, output: []u8) -> s32 {
+    if value == null || output.count == 0 { return -1 }
+    count := env.functions.GetStringLength(env, value)
+    chars := env.functions.GetStringChars(env, value, null)
+    if chars == null { return -1 }
+    index: s32 = 0; used: s32 = 0
+    while index < count {
+        codepoint := cast(u32)chars[index]
+        if codepoint >= cast(u32)55296 && codepoint <= cast(u32)56319 && index + 1 < count {
+            low := cast(u32)chars[index + 1]
+            if low >= cast(u32)56320 && low <= cast(u32)57343 {
+                codepoint = cast(u32)65536 + ((codepoint - cast(u32)55296) << cast(u32)10) + low - cast(u32)56320
+                index += 1
+            }
+        }
+        next := MasterEmojiAppendUtf8(output, used, codepoint)
+        if next == used { used = -1; break }
+        used = next; index += 1
+    }
+    if used >= 0 { output[used] = cast(u8)0 }
+    env.functions.ReleaseStringChars(env, value, chars)
+    return used
+}
+ArgumentObject :: (reference: *void) -> JniValue { return JniValue.{cast(u64)cast(usize)reference} }
+ArgumentInteger :: (integer: s32) -> JniValue { return JniValue.{cast(u64)cast(u32)integer} }
+ArgumentBool :: (boolean: bool) -> JniValue { return JniValue.{cast(u64)boolean} }
+ObjectCall :: (env: *JniEnv, object: *void, name: string, signature: string, arguments: []JniValue) -> *void {
+    method := Method(env, object, name, signature, false)
+    if method == null { return null }
+    result := env.functions.CallObjectMethodA(env, object, method, *arguments[0])
+    if !JniOk(env) { return null }
+    return result
+}
+StaticCall :: (env: *JniEnv, type: string, name: string, signature: string, arguments: []JniValue) -> *void {
+    klass := Class(env, type)
+    method := Method(env, klass, name, signature, true)
+    if method == null { return null }
+    result := env.functions.CallStaticObjectMethodA(env, klass, method, *arguments[0])
+    if !JniOk(env) { return null }
+    return result
+}
+NewObject :: (env: *JniEnv, type: string, signature: string, arguments: []JniValue) -> *void {
+    klass := Class(env, type)
+    label: [7]u8; descriptor: [256]u8
+    if klass == null || !CopyCString("<init>", label[:]) || !CopyCString(signature, descriptor[:]) { return null }
+    method := env.functions.GetMethodID(env, klass, *label[0], *descriptor[0])
+    if !JniOk(env) { return null }
+    if method == null { return null }
+    result := env.functions.NewObjectA(env, klass, method, *arguments[0])
+    if !JniOk(env) { return null }
+    return result
+}
+VoidCall :: (env: *JniEnv, object: *void, name: string, signature: string, arguments: []JniValue) -> bool {
+    method := Method(env, object, name, signature, false)
+    if method == null { return false }
+    env.functions.CallVoidMethodA(env, object, method, *arguments[0])
+    return JniOk(env)
+}
+BoolCall :: (env: *JniEnv, object: *void, name: string, signature: string, arguments: []JniValue) -> bool {
+    method := Method(env, object, name, signature, false)
+    if method == null { return false }
+    result := env.functions.CallBooleanMethodA(env, object, method, *arguments[0])
+    return JniOk(env) && result != cast(u8)0
+}
+NoArguments :: () -> [1]JniValue { result: [1]JniValue; return result }
+
+Service :: (session: *ActivityJniSession, name: string) -> *void {
+    args: [1]JniValue
+    args[0] = ArgumentObject(TextObject(session.env, name))
+    return ObjectCall(session.env, session.activity, "getSystemService", "(Ljava/lang/String;)Ljava/lang/Object;", args[:])
+}
+
+AndroidReadPreference :: (name: string, output: []u8) -> s32 {
+    prefix := ".kryon_pass_"
+    if name.count <= prefix.count + 4 || name[0:cast(s32)prefix.count] != prefix { return -1 }
+    key := name[cast(s32)prefix.count:cast(s32)name.count - 4]
+    session: ActivityJniSession
+    if activity_jni_attach(*session) == 0 { return -1 }
+    env := session.env
+    args: [2]JniValue
+    args[0] = ArgumentObject(TextObject(env, "pass_preferences_pass")); args[1] = ArgumentInteger(0)
+    preferences := ObjectCall(env, session.activity, "getSharedPreferences", "(Ljava/lang/String;I)Landroid/content/SharedPreferences;", args[:])
+    args[0] = ArgumentObject(TextObject(env, key)); args[1] = ArgumentObject(null)
+    value := ObjectCall(env, preferences, "getString", "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;", args[:])
+    count: s32 = -1
+    if value != null && env.functions.ExceptionCheck(env) == cast(u8)0 {
+        count = CopyJavaText(env, value, output)
+    }
+    activity_jni_detach(*session)
+    return count
+}
+
+#program_export
+SecureAvailable :: () -> bool {
+    session: ActivityJniSession
+    if activity_jni_attach(*session) == 0 { return false }
+    args := NoArguments()
+    keyguard := Service(*session, "keyguard")
+    available := BoolCall(session.env, keyguard, "isDeviceSecure", "()Z", args[:])
+    activity_jni_detach(*session)
+    return available
+}
+#program_export
+SecureSaved :: () -> bool {
+    bytes: [2105]u8
+    return ReadStore(".pass-master", bytes[:]) > 0
+}
+
+KeyStore :: (env: *JniEnv) -> *void {
+    args: [1]JniValue
+    args[0] = ArgumentObject(TextObject(env, "AndroidKeyStore"))
+    key_store := StaticCall(env, "java/security/KeyStore", "getInstance", "(Ljava/lang/String;)Ljava/security/KeyStore;", args[:])
+    args[0] = ArgumentObject(null)
+    if !VoidCall(env, key_store, "load", "(Ljava/security/KeyStore$LoadStoreParameter;)V", args[:]) { return null }
+    return key_store
+}
+
+CreateKey :: (env: *JniEnv) -> bool {
+    existing: [1]JniValue
+    existing[0] = ArgumentObject(TextObject(env, "pass_master_ziran"))
+    if BoolCall(env, KeyStore(env), "containsAlias", "(Ljava/lang/String;)Z", existing[:]) { return true }
+    args: [2]JniValue
+    args[0] = ArgumentObject(TextObject(env, "AES")); args[1] = ArgumentObject(TextObject(env, "AndroidKeyStore"))
+    generator := StaticCall(env, "javax/crypto/KeyGenerator", "getInstance", "(Ljava/lang/String;Ljava/lang/String;)Ljavax/crypto/KeyGenerator;", args[:])
+    args[0] = ArgumentObject(TextObject(env, "pass_master_ziran")); args[1] = ArgumentInteger(3)
+    builder := NewObject(env, "android/security/keystore/KeyGenParameterSpec$Builder", "(Ljava/lang/String;I)V", args[:])
+    // Build String[] through reflection's Array.newInstance, avoiding any
+    // VM-specific array layout in Ziran.
+    args[0] = ArgumentObject(Class(env, "java/lang/String")); args[1] = ArgumentInteger(1)
+    modes := StaticCall(env, "java/lang/reflect/Array", "newInstance", "(Ljava/lang/Class;I)Ljava/lang/Object;", args[:])
+    array_args: [3]JniValue
+    array_args[0] = ArgumentObject(modes); array_args[1] = ArgumentInteger(0)
+    array_args[2] = ArgumentObject(TextObject(env, "GCM"))
+    array_class := Class(env, "java/lang/reflect/Array")
+    method := Method(env, array_class, "set", "(Ljava/lang/Object;ILjava/lang/Object;)V", true)
+    if method == null { return false }
+    env.functions.CallStaticVoidMethodA(env, array_class, method, *array_args[0])
+    args[0] = ArgumentObject(modes)
+    ObjectCall(env, builder, "setBlockModes", "([Ljava/lang/String;)Landroid/security/keystore/KeyGenParameterSpec$Builder;", args[:])
+    array_args[2] = ArgumentObject(TextObject(env, "NoPadding"))
+    env.functions.CallStaticVoidMethodA(env, array_class, method, *array_args[0])
+    ObjectCall(env, builder, "setEncryptionPaddings", "([Ljava/lang/String;)Landroid/security/keystore/KeyGenParameterSpec$Builder;", args[:])
+    args[0] = ArgumentBool(true)
+    ObjectCall(env, builder, "setUserAuthenticationRequired", "(Z)Landroid/security/keystore/KeyGenParameterSpec$Builder;", args[:])
+    args[0] = ArgumentInteger(15)
+    ObjectCall(env, builder, "setUserAuthenticationValidityDurationSeconds", "(I)Landroid/security/keystore/KeyGenParameterSpec$Builder;", args[:])
+    empty := NoArguments()
+    specification := ObjectCall(env, builder, "build", "()Landroid/security/keystore/KeyGenParameterSpec;", empty[:])
+    args[0] = ArgumentObject(specification)
+    if !VoidCall(env, generator, "init", "(Ljava/security/spec/AlgorithmParameterSpec;)V", args[:]) { return false }
+    key := ObjectCall(env, generator, "generateKey", "()Ljavax/crypto/SecretKey;", empty[:])
+    return key != null && env.functions.ExceptionCheck(env) == cast(u8)0
+}
+
+ConfirmDevice :: (session: *ActivityJniSession) -> bool {
+    keyguard := Service(session, "keyguard")
+    args: [2]JniValue
+    args[0] = ArgumentObject(TextObject(session.env, "Pass"))
+    args[1] = ArgumentObject(TextObject(session.env, "Unlock your saved master password"))
+    intent := ObjectCall(session.env, keyguard, "createConfirmDeviceCredentialIntent", "(Ljava/lang/CharSequence;Ljava/lang/CharSequence;)Landroid/content/Intent;", args[:])
+    if intent == null { return false }
+    args[0] = ArgumentObject(intent); args[1] = ArgumentInteger(107)
+    return VoidCall(session.env, session.activity, "startActivityForResult", "(Landroid/content/Intent;I)V", args[:])
+}
+
+#program_export
+SecureRequest :: (master: string, save: bool) -> bool {
+    if secure_pending != 0 || !SecureAvailable() { return false }
+    session: ActivityJniSession
+    if activity_jni_attach(*session) == 0 { return false }
+    ok: bool = true
+    if save { ok = CopyCString(master, secure_master[:]) && CreateKey(session.env) }
+    if ok { ok = ConfirmDevice(*session) }
+    activity_jni_detach(*session)
+    if !ok { secure_master = .{}; return false }
+    secure_pending = ifx save then 1 else 2
+    secure_deadline = Now() + 60.0
+    return true
+}
+
+// Encoding keeps encrypted bytes in the same text storage contract as profiles.
+HexDigit :: (value: u8) -> u8 {
+    if value < cast(u8)10 { return value + cast(u8)48 }
+    return value + cast(u8)87
+}
+Unhex :: (byte: u8) -> s32 {
+    if byte >= cast(u8)48 && byte <= cast(u8)57 { return cast(s32)byte - 48 }
+    if byte >= cast(u8)97 && byte <= cast(u8)102 { return cast(s32)byte - 87 }
+    return -1
+}
+
+TrySecure :: (session: *ActivityJniSession, output: []u8) -> s32 {
+    env := session.env
+    key_store := KeyStore(env)
+    args: [3]JniValue
+    args[0] = ArgumentObject(TextObject(env, "pass_master_ziran")); args[1] = ArgumentObject(null)
+    key := ObjectCall(env, key_store, "getKey", "(Ljava/lang/String;[C)Ljava/security/Key;", args[:])
+    if key == null { return 3 }
+    args[0] = ArgumentObject(TextObject(env, "AES/GCM/NoPadding"))
+    cipher := StaticCall(env, "javax/crypto/Cipher", "getInstance", "(Ljava/lang/String;)Ljavax/crypto/Cipher;", args[:])
+    bytes: [1052]u8
+    hex: [2105]u8
+    length: s32
+    prefix: s32
+    if secure_pending == 1 {
+        args[0] = ArgumentInteger(1); args[1] = ArgumentObject(key)
+        if !VoidCall(env, cipher, "init", "(ILjava/security/Key;)V", args[:]) { return 1 }
+        empty := NoArguments()
+        iv := ObjectCall(env, cipher, "getIV", "()[B", empty[:])
+        if iv == null || env.functions.GetArrayLength(env, iv) != 12 { return 3 }
+        env.functions.GetByteArrayRegion(env, iv, 0, 12, *bytes[0])
+        prefix = 12
+        value := TextUntilNul(secure_master[:])
+        length = cast(s32)value.count
+        data := env.functions.NewByteArray(env, length)
+        env.functions.SetByteArrayRegion(env, data, 0, length, *secure_master[0])
+        args[0] = ArgumentObject(data)
+    } else {
+        hex_count := ReadStore(".pass-master", hex[:])
+        if hex_count < 56 || hex_count % 2 != 0 { return 3 }
+        length = hex_count / 2
+        if length > 1052 { return 3 }
+        index: s32 = 0
+        while index < length {
+            high := Unhex(hex[index * 2]); low := Unhex(hex[index * 2 + 1])
+            if high < 0 || low < 0 { return 3 }
+            bytes[index] = cast(u8)(high * 16 + low); index += 1
+        }
+        iv := env.functions.NewByteArray(env, 12)
+        env.functions.SetByteArrayRegion(env, iv, 0, 12, *bytes[0])
+        args[0] = ArgumentInteger(128); args[1] = ArgumentObject(iv)
+        parameters := NewObject(env, "javax/crypto/spec/GCMParameterSpec", "(I[B)V", args[:])
+        args[0] = ArgumentInteger(2); args[1] = ArgumentObject(key); args[2] = ArgumentObject(parameters)
+        if !VoidCall(env, cipher, "init", "(ILjava/security/Key;Ljava/security/spec/AlgorithmParameterSpec;)V", args[:]) { return 1 }
+        length -= 12
+        data := env.functions.NewByteArray(env, length)
+        env.functions.SetByteArrayRegion(env, data, 0, length, *bytes[12])
+        args[0] = ArgumentObject(data)
+    }
+    result := ObjectCall(env, cipher, "doFinal", "([B)[B", args[:])
+    if result == null || env.functions.ExceptionCheck(env) != cast(u8)0 { return 3 }
+    length = env.functions.GetArrayLength(env, result)
+    if length <= 0 || length + prefix > 1052 { return 3 }
+    env.functions.GetByteArrayRegion(env, result, 0, length, *bytes[prefix])
+    if secure_pending == 1 {
+        length += prefix
+        index: s32 = 0
+        while index < length { hex[index * 2] = HexDigit(bytes[index] >> cast(u8)4); hex[index * 2 + 1] = HexDigit(bytes[index] & cast(u8)15); index += 1 }
+        if !WriteStore(".pass-master", TextView(hex[0:length * 2])) { return 3 }
+    } else {
+        if length >= cast(s32)output.count { return 3 }
+        index: s32 = 0
+        while index < length { output[index] = bytes[index]; index += 1 }
+        output[length] = cast(u8)0
+    }
+    for index: 0..1051 { bytes[index] = cast(u8)0 }
+    return 2
+}
+
+#program_export
+SecurePoll :: (output: []u8) -> s32 {
+    if secure_pending == 0 { return 0 }
+    result: s32 = 3
+    if Now() < secure_deadline {
+        session: ActivityJniSession
+        if activity_jni_attach(*session) != 0 {
+            result = TrySecure(*session, output)
+            // Unauthenticated key use is expected while the system prompt is open.
+            if session.env.functions.ExceptionCheck(session.env) != cast(u8)0 { session.env.functions.ExceptionClear(session.env) }
+            activity_jni_detach(*session)
+        }
+    }
+    if result == 2 || result == 3 { secure_pending = 0; secure_master = .{} }
+    return result
+}
+
+#program_export
+SecureForget :: () -> bool {
+    session: ActivityJniSession
+    if activity_jni_attach(*session) == 0 { return false }
+    args: [1]JniValue
+    args[0] = ArgumentObject(TextObject(session.env, "pass_master_ziran"))
+    ok := VoidCall(session.env, KeyStore(session.env), "deleteEntry", "(Ljava/lang/String;)V", args[:])
+    activity_jni_detach(*session)
+    secure_pending = 0; secure_master = .{}
+    return WriteStore(".pass-master", "") && ok
+}
+
+AndroidClipboardWrite :: (value: string) -> bool {
+    session: ActivityJniSession
+    if activity_jni_attach(*session) == 0 { return false }
+    args: [2]JniValue
+    args[0] = ArgumentObject(TextObject(session.env, "Pass"))
+    args[1] = ArgumentObject(TextObject(session.env, value))
+    clip := StaticCall(session.env, "android/content/ClipData", "newPlainText", "(Ljava/lang/CharSequence;Ljava/lang/CharSequence;)Landroid/content/ClipData;", args[:])
+    args[0] = ArgumentObject(clip)
+    ok := VoidCall(session.env, Service(*session, "clipboard"), "setPrimaryClip", "(Landroid/content/ClipData;)V", args[:])
+    activity_jni_detach(*session)
+    return ok
+}
+
+AndroidClipboardRead :: (output: []u8) -> string {
+    session: ActivityJniSession
+    if activity_jni_attach(*session) == 0 { return "" }
+    args := NoArguments()
+    clip := ObjectCall(session.env, Service(*session, "clipboard"), "getPrimaryClip", "()Landroid/content/ClipData;", args[:])
+    args[0] = ArgumentInteger(0)
+    item := ObjectCall(session.env, clip, "getItemAt", "(I)Landroid/content/ClipData$Item;", args[:])
+    args[0] = ArgumentObject(session.activity)
+    text := ObjectCall(session.env, item, "coerceToText", "(Landroid/content/Context;)Ljava/lang/CharSequence;", args[:])
+    string := ObjectCall(session.env, text, "toString", "()Ljava/lang/String;", args[:])
+    copied: bool
+    if string != null && session.env.functions.ExceptionCheck(session.env) == cast(u8)0 {
+        copied = CopyJavaText(session.env, string, output) >= 0
+    }
+    activity_jni_detach(*session)
+    if copied { return TextUntilNul(output) }
+    return ""
+}
+
+AndroidDark :: () -> bool {
+    session: ActivityJniSession
+    if activity_jni_attach(*session) == 0 { return false }
+    env := session.env
+    args := NoArguments()
+    resources := ObjectCall(env, session.activity, "getResources", "()Landroid/content/res/Resources;", args[:])
+    config := ObjectCall(env, resources, "getConfiguration", "()Landroid/content/res/Configuration;", args[:])
+    name: [8]u8; signature: [2]u8
+    CopyCString("uiMode", name[:]); CopyCString("I", signature[:])
+    field := env.functions.GetFieldID(env, Class(env, "android/content/res/Configuration"), *name[0], *signature[0])
+    dark: bool
+    if config != null && field != null { dark = (env.functions.GetIntField(env, config, field) & 48) == 32 }
+    activity_jni_detach(*session)
+    return dark
+}

@@ -1,26 +1,17 @@
 #!/bin/sh
 set -eu
-
 ziran=${1:?pass the ziran command}
 repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-work=$repo/build/ziran-core-test
-
-"$ziran" fmt --check "$repo/pass_core.zi" "$repo/pass_core_test.zi"
-"$ziran" check --project --locked "$repo/pass_core_test.zi"
-"$ziran" bundle --module-path "$repo" --root "$repo" \
-    --entry pass_core_test:PortableAnswer -o "$work.zib" \
-    "$repo/pass_core_test.zi"
-test "$("$ziran" run "$work.zib")" = 42
-
-rm -rf "$work"
-"$ziran" build --project --locked --target=c -o "$work" \
-    "$repo/pass_core_test.zi"
-cat > "$work/main.c" <<'EOF'
-#include "pass_core_test.h"
-int main(void) { return Answer() == 42 ? 0 : 1; }
-EOF
-ziran_root=$("$ziran" pkg path ziran --locked)
-${CC:-cc} -std=c11 -I"$ziran_root/include" -I"$work" \
-    "$work/pass_core.c" "$work/pass_core_test.c" "$work/main.c" \
-    -o "$work/runner"
-"$work/runner"
+cd "$repo"
+ziran_root=$("$ziran" pkg path ziran)
+mkdir -p build/core-test
+"$ziran" check --root tests --module-path . tests/core_main.zi
+"$ziran" build --target=c --root tests --module-path . -o build/core-test/c tests/core_main.zi
+${CC:-cc} -std=c99 -O2 -I"$ziran_root/include" -Ibuild/core-test/c build/core-test/c/*.c -o build/core-test/native
+build/core-test/native
+"$ziran" bundle --module-path . --root . --entry pass_core_test:PortableAnswer -o build/core-test/core.zib pass_core_test.zi
+test "$("$ziran" run build/core-test/core.zib)" = 42
+"$ziran" ir --root . -o build/core-test/ir pass_core_test.zi
+"$ziran" bundle --root build/core-test/ir --entry pass_core_test:PortableAnswer -o build/core-test/saved.zib build/core-test/ir/pass_core_test.zir
+test "$("$ziran" run build/core-test/saved.zib)" = 42
+echo 'Ziran core: native, source bundle, and saved IR tests pass'

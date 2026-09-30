@@ -1,7 +1,8 @@
 [package]
 name = "Pass"
-entry = "pass_core.zi"
-module_roots = ["."]
+entry = "src/app.zi"
+module_roots = ["src", "."]
+bridge_modules = ["app"]
 
 [toolchain]
 git = "https://github.com/ziranlang/ziran.git"
@@ -10,4 +11,12 @@ ref = "master"
 [dependencies.Kryon]
 git = "https://github.com/kryonlabs/kryon.git"
 ref = "master"
-source = true
+
+[tool.Kryon]
+default_profile = "desktop"
+
+[tool.Kryon.profiles.desktop]
+backend = "desktop"
+
+[tool.Kryon.profiles.canvas]
+backend = "canvas"

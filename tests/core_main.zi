@@ -1,0 +1,7 @@
+#import "pass_core_test"
+
+#program_export
+main :: () -> s32 {
+    if Answer() == 42 { return 0 }
+    return 1
+}

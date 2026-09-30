@@ -1,0 +1,179 @@
+// Android UI callbacks use one generated Runnable whose run method enters
+// Ziran through RegisterNatives. The class has no app behavior or Java source.
+// DEX layout: https://source.android.com/docs/core/runtime/dex-format
+#import "android"
+#import "android_jni"
+#import "c_string"
+#import "byte_text_linux"
+#import "text_buffer"
+
+UiCallback :: #type (*JniEnv, *void) -> void #c_call;
+NativeMethod :: struct { name: *u8; signature: *u8; callback: UiCallback }
+libc :: #system_library "libc";
+MutexLock :: (mutex: *void) -> s32 #foreign libc "pthread_mutex_lock";
+MutexUnlock :: (mutex: *void) -> s32 #foreign libc "pthread_mutex_unlock";
+DexOpen :: (path: *u8, mode: *u8) -> *void #foreign libc "fopen";
+DexWrite :: (bytes: *u8, size: usize, count: usize, file: *void) -> usize #foreign libc "fwrite";
+DexClose :: (file: *void) -> s32 #foreign libc "fclose";
+DexDescriptor :: (file: *void) -> s32 #foreign libc "fileno";
+DexPrivate :: (fd: s32, mode: s32) -> s32 #foreign libc "fchmod";
+
+ui_mutex: [8]u64;
+ui_pending: bool;
+ui_callback: UiCallback;
+ui_task: *void;
+UiLock :: () { MutexLock(cast(*void)*ui_mutex[0]) }
+UiUnlock :: () { MutexUnlock(cast(*void)*ui_mutex[0]) }
+
+DexWord :: (bytes: []u8, offset: s32, value: u32) {
+    for index: 0..3 { bytes[offset + cast(s32)index] = cast(u8)(value >> cast(u32)(index * 8)) }
+}
+DexHalf :: (bytes: []u8, offset: s32, value: u32) {
+    bytes[offset] = cast(u8)value; bytes[offset + 1] = cast(u8)(value >> cast(u32)8)
+}
+DexMap :: (bytes: []u8, index: s32, type: u32, count: u32, offset: u32, map: s32) {
+    at := map + 4 + index * 12
+    DexHalf(bytes, at, type); DexWord(bytes, at + 4, count); DexWord(bytes, at + 8, offset)
+}
+DexRunnable :: (env: *JniEnv, bytes: []u8) -> s32 {
+    // Header, sorted identifier tables and one class definition.
+    magic := "dex\n035"
+    for index: 0..6 { bytes[index] = magic[index] }
+    DexWord(bytes, 36, cast(u32)112); DexWord(bytes, 40, cast(u32)0x12345678)
+    DexWord(bytes, 56, cast(u32)6); DexWord(bytes, 60, cast(u32)112)
+    DexWord(bytes, 64, cast(u32)4); DexWord(bytes, 68, cast(u32)136)
+    DexWord(bytes, 72, cast(u32)1); DexWord(bytes, 76, cast(u32)152)
+    DexWord(bytes, 88, cast(u32)3); DexWord(bytes, 92, cast(u32)164)
+    DexWord(bytes, 96, cast(u32)1); DexWord(bytes, 100, cast(u32)188)
+    DexWord(bytes, 108, cast(u32)220)
+    for index: 0..3 { DexWord(bytes, 136 + cast(s32)index * 4, cast(u32)(index + 1)) }
+    DexWord(bytes, 152, cast(u32)4); DexWord(bytes, 156, cast(u32)3)
+    DexHalf(bytes, 172, cast(u32)2); DexHalf(bytes, 180, cast(u32)2)
+    DexWord(bytes, 184, cast(u32)5)
+    DexWord(bytes, 188, cast(u32)2); DexWord(bytes, 192, cast(u32)1)
+    DexWord(bytes, 200, cast(u32)220); DexWord(bytes, 204, cast(u32)0xffffffff)
+    DexWord(bytes, 220, cast(u32)1); DexHalf(bytes, 224, cast(u32)1)
+    strings: [6]string = .{"<init>", "Ljava/lang/Object;", "Ljava/lang/Runnable;", "Lxyz/waozi/pass/UiTask;", "V", "run"}
+    at: s32 = 228
+    for index: 0..5 {
+        DexWord(bytes, 112 + cast(s32)index * 4, cast(u32)at)
+        bytes[at] = cast(u8)strings[index].count; at += 1
+        position: s32 = 0
+        while position < cast(s32)strings[index].count { bytes[at] = strings[index][position]; at += 1; position += 1 }
+        at += 1
+    }
+    code := (at + 3) & -4
+    DexHalf(bytes, code, cast(u32)1); DexHalf(bytes, code + 2, cast(u32)1); DexHalf(bytes, code + 4, cast(u32)1)
+    DexWord(bytes, code + 12, cast(u32)4)
+    DexHalf(bytes, code + 16, cast(u32)0x1070) // invoke-direct {v0}, Object.<init>
+    DexHalf(bytes, code + 22, cast(u32)0x000e) // return-void
+    data := code + 24
+    DexWord(bytes, 212, cast(u32)data)
+    bytes[data + 2] = cast(u8)1; bytes[data + 3] = cast(u8)1
+    bytes[data + 4] = cast(u8)1
+    bytes[data + 5] = cast(u8)0x81; bytes[data + 6] = cast(u8)0x80; bytes[data + 7] = cast(u8)4
+    bytes[data + 8] = cast(u8)((code & 127) | 128); bytes[data + 9] = cast(u8)(code >> 7)
+    bytes[data + 10] = cast(u8)2; bytes[data + 11] = cast(u8)0x81; bytes[data + 12] = cast(u8)2
+    map := (data + 17) & -4
+    DexWord(bytes, 52, cast(u32)map); DexWord(bytes, map, cast(u32)11)
+    DexMap(bytes, 0, cast(u32)0, cast(u32)1, cast(u32)0, map)
+    DexMap(bytes, 1, cast(u32)1, cast(u32)6, cast(u32)112, map)
+    DexMap(bytes, 2, cast(u32)2, cast(u32)4, cast(u32)136, map)
+    DexMap(bytes, 3, cast(u32)3, cast(u32)1, cast(u32)152, map)
+    DexMap(bytes, 4, cast(u32)5, cast(u32)3, cast(u32)164, map)
+    DexMap(bytes, 5, cast(u32)6, cast(u32)1, cast(u32)188, map)
+    DexMap(bytes, 6, cast(u32)0x1001, cast(u32)1, cast(u32)220, map)
+    DexMap(bytes, 7, cast(u32)0x2002, cast(u32)6, cast(u32)228, map)
+    DexMap(bytes, 8, cast(u32)0x2001, cast(u32)1, cast(u32)code, map)
+    DexMap(bytes, 9, cast(u32)0x2000, cast(u32)1, cast(u32)data, map)
+    DexMap(bytes, 10, cast(u32)0x1000, cast(u32)1, cast(u32)map, map)
+    length := map + 136
+    DexWord(bytes, 32, cast(u32)length); DexWord(bytes, 104, cast(u32)(length - 220))
+    args: [1]JniValue
+    args[0] = ArgumentObject(TextObject(env, "SHA-1"))
+    digest := StaticCall(env, "java/security/MessageDigest", "getInstance", "(Ljava/lang/String;)Ljava/security/MessageDigest;", args[:])
+    payload := env.functions.NewByteArray(env, length - 32)
+    env.functions.SetByteArrayRegion(env, payload, 0, length - 32, *bytes[32])
+    args[0] = ArgumentObject(payload)
+    signature := ObjectCall(env, digest, "digest", "([B)[B", args[:])
+    if signature == null || env.functions.ExceptionCheck(env) != cast(u8)0 { return 0 }
+    env.functions.GetByteArrayRegion(env, signature, 0, 20, *bytes[12])
+    first: u32 = 1; second: u32 = 0
+    index: s32 = 12
+    while index < length { first = (first + cast(u32)bytes[index]) % cast(u32)65521; second = (second + first) % cast(u32)65521; index += 1 }
+    DexWord(bytes, 8, (second << cast(u32)16) | first)
+    return length
+}
+UiRun :: (env: *JniEnv, task: *void) {
+    UiLock()
+    if ui_pending { ui_callback(env, task); ui_pending = false }
+    UiUnlock()
+}
+UiInitialize :: () -> bool {
+    if ui_task != null { return true }
+    session: ActivityJniSession
+    if activity_jni_attach(*session) == 0 { return false }
+    env := session.env
+    bytes: [512]u8
+    length := DexRunnable(env, bytes[:])
+    path: [1024]u8
+    base := TextFromCString(ActivityInternalDataPath())
+    index: s32 = 0
+    while index < cast(s32)base.count && index < 900 { path[index] = base[index]; index += 1 }
+    suffix := "/ui-task.dex"
+    for position: 0..11 { path[index + cast(s32)position] = suffix[position] }
+    mode: [3]u8
+    CopyCString("rb", mode[:])
+    file := DexOpen(*path[0], *mode[0])
+    if file != null { DexClose(file) }
+    else {
+        CopyCString("wb", mode[:]); file = DexOpen(*path[0], *mode[0])
+        if file == null || length == 0 { activity_jni_detach(*session); return false }
+        // Android 14 requires dynamically loaded code to be read-only.
+        // The already-open descriptor remains writable after chmod.
+        ok := DexPrivate(DexDescriptor(file), 256) == 0
+        ok = DexWrite(*bytes[0], cast(usize)1, cast(usize)length, file) == cast(usize)length && ok
+        ok = DexClose(file) == 0 && ok
+        if !ok { activity_jni_detach(*session); return false }
+    }
+    empty := NoArguments()
+    parent := ObjectCall(env, session.activity, "getClassLoader", "()Ljava/lang/ClassLoader;", empty[:])
+    args: [4]JniValue
+    args[0] = ArgumentObject(TextObject(env, TextUntilNul(path[:])))
+    args[1] = ArgumentObject(TextObject(env, base)); args[2] = ArgumentObject(null); args[3] = ArgumentObject(parent)
+    loader := NewObject(env, "dalvik/system/DexClassLoader", "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/ClassLoader;)V", args[:])
+    args[0] = ArgumentObject(TextObject(env, "xyz.waozi.pass.UiTask"))
+    klass := ObjectCall(env, loader, "loadClass", "(Ljava/lang/String;)Ljava/lang/Class;", args[:])
+    label: [4]u8; descriptor: [4]u8
+    CopyCString("run", label[:]); CopyCString("()V", descriptor[:])
+    methods: [1]NativeMethod
+    methods[0] = NativeMethod.{*label[0], *descriptor[0], UiRun}
+    ok: bool = klass != null && env.functions.ExceptionCheck(env) == cast(u8)0
+    if ok { ok = env.functions.RegisterNatives(env, klass, cast(*void)*methods[0], 1) == 0 }
+    if ok {
+        // Constructors use GetMethodID on the class rather than its meta-class.
+        constructor := env.functions.GetMethodID(env, klass, *ClassConstructorName()[0], *descriptor[0])
+        if constructor != null { ui_task = env.functions.NewGlobalRef(env, env.functions.NewObjectA(env, klass, constructor, *empty[0])) }
+    }
+    activity_jni_detach(*session)
+    return ui_task != null
+}
+constructor_name: [7]u8;
+ClassConstructorName :: () -> []u8 {
+    CopyCString("<init>", constructor_name[:]); return constructor_name[:]
+}
+UiSchedule :: (callback: UiCallback) -> bool {
+    if ui_task == null { return false }
+    UiLock()
+    if ui_pending { UiUnlock(); return false }
+    ui_pending = true; ui_callback = callback
+    UiUnlock()
+    session: ActivityJniSession
+    if activity_jni_attach(*session) == 0 { UiLock(); ui_pending = false; UiUnlock(); return false }
+    args: [1]JniValue
+    args[0] = ArgumentObject(ui_task)
+    ok := VoidCall(session.env, session.activity, "runOnUiThread", "(Ljava/lang/Runnable;)V", args[:])
+    activity_jni_detach(*session)
+    if !ok { UiLock(); ui_pending = false; UiUnlock() }
+    return ok
+}

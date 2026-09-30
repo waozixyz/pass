@@ -2,21 +2,29 @@
   "format": 1,
   "packages": [
     {
-      "commit": "485206660993c4fda6f7b014557fbfc9fcdae5d6",
+      "commit": "fafa2cea97d0cb379d832086ba45a989fa6f9c8e",
       "dependencies": {},
-      "id": "pac89f0e8fed6b994",
+      "id": "p5a77c9c35110e925",
+      "name": "raylib",
+      "ref": "fafa2cea97d0cb379d832086ba45a989fa6f9c8e",
+      "source": true,
+      "url": "https://github.com/raysan5/raylib.git"
+    },
+    {
+      "commit": "2dacc9eb7c2c023c0cc111b2c4deb210afdb4886",
+      "dependencies": {"raylib": "p5a77c9c35110e925"},
+      "id": "p83be2ed3d78fa9cf",
       "name": "Kryon",
       "ref": "master",
-      "source": true,
       "url": "https://github.com/kryonlabs/kryon.git"
     }
   ],
   "root": {
-    "dependencies": {"Kryon": "pac89f0e8fed6b994"},
+    "dependencies": {"Kryon": "p83be2ed3d78fa9cf"},
     "name": "Pass"
   },
   "toolchain": {
-    "commit": "d61e47f8da3b17b7855f247624b1ade4104d45c3",
+    "commit": "18d60d0c467b5afb664e257c3bb28a9004e77f1a",
     "ref": "master",
     "url": "https://github.com/ziranlang/ziran.git"
   }

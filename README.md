@@ -24,7 +24,6 @@ Prebuilt CLI and desktop downloads are available from
 [pass.waozi.xyz](https://pass.waozi.xyz/#downloads). To build from a checkout:
 
 ```sh
-git submodule update --init --recursive
 make cli
 ```
 
@@ -49,45 +48,66 @@ pass --length 24 --counter 2 example.com alice
 pass --no-symbols --exclude '0O1Il' example.com alice
 ```
 
-Clipboard copying, profile storage, settings, and Android fingerprint unlock
-live in the Kry app runtime. The C CLI stays stateless and prints the generated
-password.
+The CLI is stateless. The app adds clipboard clearing, profiles, settings,
+master-password masking, and Android device authentication. Profiles and
+settings keep their existing storage formats. A master password saved by the
+old Android host must be saved again with the new host; generation does not
+require storing a master password.
 
 Run `pass --help` for all flags.
 
-## Desktop app
+## Build and test
 
-The desktop, Android, and browser apps are written in Kry and compiled with
-Kryon's `k2c` compiler to C. They share `native/pass_core.c` for password
-generation and `native/pass_runtime.c` for app storage, clipboard, and platform
-hooks.
+Every maintained Pass implementation is Ziran: password derivation, CLI,
+Kryon screens, persistence, clipboard policy, Android JNI calls, and browser
+offline caching. C, WebAssembly, and the browser JavaScript loaders are
+compiler outputs under `build/`. Shell, Python, and Gradle files orchestrate
+builds, packaging, and tests.
+
+Dependencies and the compiler are pinned in `ziran.lock`. Desktop builds need
+SDL2 and Cairo development packages; browser builds need Emscripten; Android
+builds need JDK 21 and the SDK/NDK versions in `droid/app/build.gradle`.
 
 ```sh
-git submodule update --init --recursive
-make gui
-./build/pass-gui
+make test           # native core/CLI, independent reference, portable runtime
+make gui            # build/pass-gui
+make gui-smoke      # private Xvfb display
+make site           # build/site: browser app and generated offline worker
+make web-smoke      # private headless Chromium
+make android-debug  # ARM32, ARM64 and universal APKs
 ```
 
-## Android
+The Android app supports API 21 and newer and declares no Internet permission.
+Optional master-password storage uses AndroidKeyStore and device
+credential authentication on API 23 and newer. Browser profiles/settings use
+IndexedDB; offline use requires an initial successful online load.
 
-The Android app runs on Android 5.0 (API 21) and newer. Install the signed
-APK (`pass-android.apk`) from [pass.waozi.xyz](https://pass.waozi.xyz/#downloads)
-or the [releases page](https://github.com/waozixyz/pass/releases/latest). It
-uses the same generation algorithm as the desktop app, computes everything
-locally, and declares no Internet permission at all. The only permissions it
-requests are for the optional fingerprint unlock.
+For development with the real sibling repositories, create an ignored
+`ziran.local.toml`:
 
-## Source Layout
+```toml
+[overrides]
+Kryon = "../kryon"
+ziran = "../ziran"
+```
 
-The app has one UI implementation:
+`make plan9-c` emits the password core in Plan 9 C. Native Plan 9 GUI support
+is pending Kryon's native libdraw input and run profile; there is no maintained
+legacy C frontend.
+
+## Source layout
 
 ```text
-app/*.kry -> k2c -> generated C -> desktop / Android / web
-pass_core.zi -> Ziran password core
-native/pass_core_zi.c -> compatibility adapter for existing C runtimes
-native/pass_core.c -> legacy C equivalence oracle
-native/pass_runtime.c -> app-facing runtime externs
-native/pass_cli.c -> command-line frontend
+pass_core.zi           password derivation and fingerprint
+src/cli.zi             command-line entry point
+src/app.zi             shared Kryon screens
+src/runtime.zi         settings, profiles, clipboard and secure actions
+src/theme.zi           native Kryon style rules
+src/host.zi            storage and platform capabilities
+src/desktop.zi         desktop lifecycle
+src/browser.zi         browser lifecycle
+src/service_worker.zi  offline caching
+src/android*.zi        NativeActivity, JNI and Android lifecycle
 ```
 
 ## License

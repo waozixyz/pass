@@ -16,10 +16,10 @@ fi
 
 device="${PASS_ANDROID_DEVICE:-}"
 if [ -z "$device" ]; then
-  device=$(adb devices | awk 'NR > 1 && $2 == "device" { print $1; exit }')
+  device=$(adb devices | awk 'NR > 1 && $1 ~ /^emulator-/ && $2 == "device" { print $1; exit }')
 fi
 if [ -z "$device" ]; then
-  echo "android smoke: skipped, no connected adb device" >&2
+  echo "android smoke: skipped, no private emulator; set PASS_ANDROID_DEVICE explicitly for a device" >&2
   exit 0
 fi
 

@@ -1,0 +1,161 @@
+// A framework EditText owns the Android InputConnection and composition.
+// Kryon continues to own the visible fields and editing decisions. All view
+// access runs on Android's UI thread through the generated native Runnable.
+#import "android"
+#import "android_jni"
+#import "android_dispatch"
+#import "text"
+#import "text_buffer"
+#import "utf8"
+
+AndroidTextSelection :: struct { valid: bool; cursor: s32; anchor: s32 }
+input_view: *void;
+input_field: s32 = -1;
+requested_field: s32 = -1;
+input_value: [1024]u8;
+observed_value: [1024]u8;
+observed_cursor: s32;
+observed_anchor: s32;
+requested_value: [1024]u8;
+input_cursor: s32;
+input_anchor: s32;
+requested_cursor: s32;
+requested_anchor: s32;
+requested_secure: bool;
+input_dirty: bool;
+selection_dirty: bool;
+input_available: bool;
+input_secure: bool;
+
+IntegerCall :: (env: *JniEnv, object: *void, name: string, signature: string, arguments: []JniValue) -> s32 {
+    method := Method(env, object, name, signature, false)
+    if method == null { return -1 }
+    return env.functions.CallIntMethodA(env, object, method, *arguments[0])
+}
+Utf16Position :: (value: string, byte: s32) -> s32 {
+    index: s32 = 0; count: s32 = 0
+    while index < cast(s32)value.count && index < byte {
+        decoded := Decode(value, index)
+        count += ifx decoded.value > cast(u32)65535 then 2 else 1
+        index = decoded.after
+    }
+    return count
+}
+Utf8Position :: (value: string, units: s32) -> s32 {
+    index: s32 = 0; count: s32 = 0
+    while index < cast(s32)value.count && count < units {
+        decoded := Decode(value, index)
+        count += ifx decoded.value > cast(u32)65535 then 2 else 1
+        index = decoded.after
+    }
+    return index
+}
+UiInputCreate :: (env: *JniEnv) -> bool {
+    args: [2]JniValue
+    args[0] = ArgumentObject(NativeApp().activity.activity)
+    view := NewObject(env, "android/widget/EditText", "(Landroid/content/Context;)V", args[:])
+    if view == null { return false }
+    input_view = env.functions.NewGlobalRef(env, view)
+    args[0] = ArgumentBool(true)
+    VoidCall(env, view, "setSingleLine", "(Z)V", args[:])
+    args[0] = ArgumentInteger(6)
+    VoidCall(env, view, "setImeOptions", "(I)V", args[:])
+    args[0] = ArgumentInteger(2)
+    VoidCall(env, view, "setImportantForAccessibility", "(I)V", args[:])
+    // Zero is also the IEEE float representation of transparent alpha.
+    args[0] = ArgumentInteger(0)
+    VoidCall(env, view, "setAlpha", "(F)V", args[:])
+    args[0] = ArgumentInteger(1); args[1] = ArgumentInteger(1)
+    layout := NewObject(env, "android/widget/FrameLayout$LayoutParams", "(II)V", args[:])
+    empty := NoArguments()
+    window := ObjectCall(env, NativeApp().activity.activity, "getWindow", "()Landroid/view/Window;", empty[:])
+    decor := ObjectCall(env, window, "getDecorView", "()Landroid/view/View;", empty[:])
+    args[0] = ArgumentObject(view); args[1] = ArgumentObject(layout)
+    return VoidCall(env, decor, "addView", "(Landroid/view/View;Landroid/view/ViewGroup$LayoutParams;)V", args[:])
+}
+UiInputSync :: (env: *JniEnv, task: *void) {
+    if input_view == null && !UiInputCreate(env) { return }
+    args: [2]JniValue
+    empty := NoArguments()
+    if requested_field < 0 {
+        if input_field >= 0 {
+            args[0] = ArgumentObject(TextObject(env, ""))
+            VoidCall(env, input_view, "setText", "(Ljava/lang/CharSequence;)V", args[:])
+            VoidCall(env, input_view, "clearFocus", "()V", empty[:])
+        }
+        input_field = -1; input_value = .{}; requested_value = .{}; observed_value = .{}
+        return
+    }
+    changed := input_field != requested_field
+    if changed || input_secure != requested_secure {
+        input_secure = requested_secure
+        args[0] = ArgumentInteger(ifx requested_secure then 0x80081 else 0x80001)
+        VoidCall(env, input_view, "setInputType", "(I)V", args[:])
+    }
+    if changed || input_dirty {
+        args[0] = ArgumentObject(TextObject(env, TextUntilNul(requested_value[:])))
+        VoidCall(env, input_view, "setText", "(Ljava/lang/CharSequence;)V", args[:])
+    }
+    if changed || input_dirty || selection_dirty {
+        value := TextUntilNul(requested_value[:])
+        args[0] = ArgumentInteger(Utf16Position(value, requested_anchor))
+        args[1] = ArgumentInteger(Utf16Position(value, requested_cursor))
+        VoidCall(env, input_view, "setSelection", "(II)V", args[:])
+    }
+    if changed {
+        BoolCall(env, input_view, "requestFocus", "()Z", empty[:])
+        session: ActivityJniSession
+        session.env = env; session.activity = NativeApp().activity.activity
+        manager := Service(*session, "input_method")
+        args[0] = ArgumentObject(input_view); args[1] = ArgumentInteger(0)
+        BoolCall(env, manager, "showSoftInput", "(Landroid/view/View;I)Z", args[:])
+    }
+    input_field = requested_field; input_dirty = false; selection_dirty = false
+    editable := ObjectCall(env, input_view, "getText", "()Landroid/text/Editable;", empty[:])
+    text := ObjectCall(env, editable, "toString", "()Ljava/lang/String;", empty[:])
+    value: [1024]u8
+    count := CopyJavaText(env, text, value[:])
+    if count >= 0 { input_value = value }
+    else {
+        // Keep the byte limit without accepting a partial UTF-8 sequence.
+        args[0] = ArgumentObject(TextObject(env, TextUntilNul(input_value[:])))
+        VoidCall(env, input_view, "setText", "(Ljava/lang/CharSequence;)V", args[:])
+    }
+    input_cursor = Utf8Position(TextUntilNul(input_value[:]), IntegerCall(env, input_view, "getSelectionEnd", "()I", empty[:]))
+    input_anchor = Utf8Position(TextUntilNul(input_value[:]), IntegerCall(env, input_view, "getSelectionStart", "()I", empty[:]))
+    for index: 0..1023 { value[index] = cast(u8)0 }
+    if env.functions.ExceptionCheck(env) != cast(u8)0 { env.functions.ExceptionDescribe(env); env.functions.ExceptionClear(env) }
+}
+AndroidTextInitialize :: () -> bool {
+    input_available = UiInitialize()
+    return input_available
+}
+AndroidTextRead :: (id: s32, output: []u8) -> AndroidTextSelection {
+    result: AndroidTextSelection
+    if !input_available { return result }
+    UiLock()
+    if input_field == id {
+        result.valid = CopyText(TextUntilNul(input_value[:]), output)
+        result.cursor = input_cursor; result.anchor = input_anchor
+        observed_value = input_value; observed_cursor = input_cursor; observed_anchor = input_anchor
+    }
+    UiUnlock()
+    return result
+}
+AndroidTextSubmit :: (id: s32, value: string, cursor: s32, anchor: s32, secure: bool) {
+    if !input_available { return }
+    UiLock()
+    // Compare against the snapshot this render frame read. The UI thread may
+    // already have newer IME input; that must never be overwritten as an edit.
+    if requested_field != id || value != TextUntilNul(observed_value[:]) { input_dirty = true }
+    if cursor != observed_cursor || anchor != observed_anchor { selection_dirty = true }
+    requested_field = id; CopyText(value, requested_value[:])
+    requested_cursor = cursor; requested_anchor = anchor; requested_secure = secure
+    UiUnlock()
+    UiSchedule(UiInputSync)
+}
+AndroidTextHide :: () {
+    if !input_available { return }
+    UiLock(); requested_field = -1; requested_value = .{}; UiUnlock()
+    UiSchedule(UiInputSync)
+}
