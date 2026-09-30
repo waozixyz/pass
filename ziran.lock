@@ -19,16 +19,16 @@
       "url": "https://github.com/raysan5/raylib.git"
     },
     {
-      "commit": "58c83781da02e72c1dc9c18bcfef83bc772a40fb",
+      "commit": "a54be452d87f8a9bc44fe2a0e3767b99e66b6cf5",
       "dependencies": {"raylib": "p5a77c9c35110e925"},
-      "id": "pe1833b296eb48392",
+      "id": "pf59570b542b63322",
       "name": "Kryon",
       "ref": "master",
       "url": "https://github.com/kryonlabs/kryon.git"
     }
   ],
   "root": {
-    "dependencies": {"Kryon": "pe1833b296eb48392", "mingcute": "p56788fa3dab3e73a"},
+    "dependencies": {"Kryon": "pf59570b542b63322", "mingcute": "p56788fa3dab3e73a"},
     "name": "Pass"
   },
   "toolchain": {

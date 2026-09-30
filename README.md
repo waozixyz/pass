@@ -72,9 +72,12 @@ builds need JDK 21 and the SDK/NDK versions in `droid/app/build.gradle`.
 make test           # native core/CLI, independent reference, portable runtime
 make gui            # build/pass-gui
 make gui-smoke      # private Xvfb display
+make gui-input-test # typing, Generate/Copy, profiles and restart on private Xvfb
 make site           # build/site: browser app and generated offline worker
 make web-smoke      # private headless Chromium
 make android-debug  # ARM32, ARM64 and universal APKs
+make android-emulator # build the x86_64 APK
+make android-input-test # keyboard, Generate/Copy and persistence in a private emulator
 ```
 
 The Android app supports API 21 and newer and declares no Internet permission.
