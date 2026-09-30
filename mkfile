@@ -1,13 +1,31 @@
-< /$objtype/mkfile
+</$objtype/mkfile
 
-# The Ziran core is generated on the host by make plan9-c. Native GUI input
-# awaits Kryon's native libdraw provider; do not compile the removed C app.
-TARG=pass_core.a
-OFILES=build/plan9/core/pass_core.$O
-CFLAGS=-Ibuild/plan9/core
+# Generate with `make plan9-c` on the host, then build natively with `mk`.
+GUI_FILES=`{ls build/plan9/gui/*.c}
+CLI_FILES=`{ls build/plan9/cli/*.c}
+GUI_HEADERS=`{ls build/plan9/gui/*.h}
+CLI_HEADERS=`{ls build/plan9/cli/*.h}
+GUI_OBJECTS=${GUI_FILES:%.c=%.$O}
+CLI_OBJECTS=${CLI_FILES:%.c=%.$O}
+CFLAGS=-FTVw
+LIB=/$objtype/lib/libdraw.a /$objtype/lib/libthread.a
 
-$TARG: $OFILES
-	ar vu $target $prereq
+all:V: pass-gui pass
 
-build/plan9/core/%.$O: build/plan9/core/%.c
-	$CC $CFLAGS -o $target $prereq
+pass-gui: $GUI_OBJECTS $LIB
+	$LD -o $target $prereq
+
+pass: $CLI_OBJECTS
+	$LD -o $target $prereq
+
+$GUI_OBJECTS: $GUI_HEADERS
+$CLI_OBJECTS: $CLI_HEADERS
+
+%.$O: %.c
+	$CC $CFLAGS -o $target $stem.c
+
+install:V: pass-gui pass
+	cp pass-gui /$objtype/bin/pass-gui
+	cp pass /$objtype/bin/pass
+	mkdir -p /sys/lib/pass
+	cp build/plan9/assets/fingerprint.bit /sys/lib/pass/fingerprint.bit

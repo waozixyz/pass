@@ -1,0 +1,141 @@
+#import "c_string"
+#import "byte_text_linux"
+#import "text_buffer"
+#import "mini"
+File :: #import "file_plan9";
+#scope_file
+libc :: #system_library "libc";
+Environment :: (name: *s8) -> *s8 #foreign libc "getenv";
+Nanoseconds :: () -> s64 #foreign libc "nsec";
+Release :: (pointer: *void) #foreign libc "free";
+
+data_root: [2048]u8;
+asset_path: [2048]u8;
+
+Env :: (name: string, output: []u8) -> bool {
+    key: [128]u8
+    if !CopyCString(name, key[:]) { return false }
+    value := cast(*u8)Environment(cast(*s8)*key[0])
+    if value == null { return false }
+    ok := CopyCString(TextFromCString(value), output)
+    Release(cast(*void)value)
+    return ok
+}
+
+Append :: (prefix: string, suffix: string, output: []u8) -> string {
+    if prefix.count + suffix.count >= output.count { return "" }
+    if !CopyCString(prefix, output) || !CopyCString(suffix, output[prefix.count:]) { return "" }
+    return TextUntilNul(output)
+}
+
+StorePath :: (name: string, output: []u8) -> string {
+    if data_root[0] == cast(u8)0 {
+        if !Env("PASS_DATA", data_root[:]) {
+            home: [1800]u8
+            if !Env("home", home[:]) { return "" }
+            if Append(TextUntilNul(home[:]), "/lib/pass", data_root[:]) == "" { return "" }
+        }
+        if !File.CreatePrivateDirectory(TextUntilNul(data_root[:])) { data_root[0] = cast(u8)0; return "" }
+    }
+    base: [2304]u8
+    if Append(TextUntilNul(data_root[:]), "/", base[:]) == "" { return "" }
+    return Append(TextUntilNul(base[:]), name, output)
+}
+
+#scope_export
+#program_export
+Plan9FingerprintPath :: () -> string {
+    if asset_path[0] == cast(u8)0 {
+        base: [1800]u8
+        if Env("PASS_ASSETS", base[:]) {
+            Append(TextUntilNul(base[:]), "/fingerprint.bit", asset_path[:])
+        } else {
+            CopyCString("/sys/lib/pass/fingerprint.bit", asset_path[:])
+            if !File.PathExists(TextUntilNul(asset_path[:])) { CopyCString("assets/fingerprint.bit", asset_path[:]) }
+        }
+    }
+    return TextUntilNul(asset_path[:])
+}
+
+#program_export
+Now :: () -> float64 { return cast(float64)Nanoseconds() / 1000000000.0 }
+#program_export
+HostDark :: () -> bool {
+    value: [64]u8
+    return Env("PASS_DARK", value[:]) && TextUntilNul(value[:]) == "1"
+}
+#program_export
+HostOpenFullApp :: () {
+    SetMiniMode(false)
+    // Rio exposes only this application's window through its /dev namespace.
+    file := File.OpenWrite("/dev/wctl")
+    if file.valid {
+        command: [32]u8
+        CopyCString("resize -dx 960 -dy 600", command[:])
+        File.Write(file, command[0:22])
+        File.CloseFile(file)
+    }
+}
+
+#program_export
+ReadStore :: (name: string, output: []u8) -> s32 {
+    path: [2304]u8; backup: [2336]u8
+    target := StorePath(name, path[:])
+    if target == "" || output.count < 2 { return -1 }
+    // Recover the previous complete value after an interrupted rename sequence.
+    old := Append(target, ".old", backup[:])
+    if !File.PathExists(target) && File.PathExists(old) { File.RenameNoReplace(old, target) }
+    file := File.OpenRead(target)
+    if !file.valid { return -1 }
+    used: s64 = 0
+    ok: bool = true
+    while used < output.count - 1 {
+        count := File.Read(file, output[used:output.count - 1])
+        if count < 0 { ok = false; break }
+        if count == 0 { break }
+        used += count
+    }
+    extra: [1]u8
+    if File.Read(file, extra[:]) != 0 { ok = false }
+    if !File.CloseFile(file) { ok = false }
+    if !ok { return -1 }
+    output[used] = cast(u8)0
+    return cast(s32)used
+}
+
+#program_export
+WriteStore :: (name: string, value: string) -> bool {
+    path: [2304]u8; temporary: [2336]u8; backup: [2336]u8
+    target := StorePath(name, path[:])
+    if target == "" { return false }
+    next := Append(target, ".tmp", temporary[:])
+    old := Append(target, ".old", backup[:])
+    if !File.PathExists(target) && File.PathExists(old) && !File.RenameNoReplace(old, target) { return false }
+    file := File.OpenPrivateReplace(next)
+    if !file.valid { return false }
+    buffer: [4096]u8
+    used: s64 = 0; ok: bool = true
+    while ok && used < value.count {
+        count := value.count - used
+        if count > 4096 { count = 4096 }
+        for index: 0..count - 1 { buffer[index] = value[used + index] }
+        written: s64 = 0
+        while written < count {
+            n := File.Write(file, buffer[written:count])
+            if n <= 0 { ok = false; break }
+            written += n
+        }
+        used += count
+    }
+    if !File.CloseFile(file) { ok = false }
+    if !ok { File.RemoveFile(next); return false }
+    if File.PathExists(old) && !File.RemoveFile(old) { return false }
+    saved := File.PathExists(target)
+    if saved && !File.RenameNoReplace(target, old) { return false }
+    if !File.RenameNoReplace(next, target) {
+        if saved { File.RenameNoReplace(old, target) }
+        return false
+    }
+    if saved { File.RemoveFile(old) }
+    return true
+}

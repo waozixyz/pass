@@ -85,18 +85,28 @@ Optional master-password storage uses AndroidKeyStore and device
 credential authentication on API 23 and newer. Browser profiles/settings use
 IndexedDB; offline use requires an initial successful online load.
 
-For development with the real sibling repositories, create an ignored
+For development with the real project repositories, create an ignored
 `ziran.local.toml`:
 
 ```toml
 [overrides]
-Kryon = "../kryon"
-ziran = "../ziran"
+Kryon = "../../kryonlabs/kryon"
+ziran = "../../ziranlang/ziran"
 ```
 
-`make plan9-c` emits the password core in Plan 9 C. Native Plan 9 GUI support
-is pending Kryon's native libdraw input and run profile; there is no maintained
-legacy C frontend.
+`make plan9-c` generates the native Plan 9 GUI, CLI, and libdraw fingerprint
+asset from Ziran sources. Transfer the checkout with `build/plan9` to Plan 9,
+then run `mk` and `mk install`. Run `pass-gui` inside Rio, or
+`pass-gui --mini` for the compact window. The GUI uses native libdraw and
+libthread, including keyboard input, mouse input, resizing, and `/dev/snarf`.
+Profiles and settings are stored privately in `$home/lib/pass`; `PASS_DATA`
+and `PASS_ASSETS` can override the data and asset directories. Optional
+master-password storage requires Android's device credential service.
+
+`make plan9-test` builds and exercises the native compiler, CLI, and GUI in
+an isolated headless q9 VM. Set `TAIJI_ROOT` to the existing Plan 9 tree when
+it is outside the default project location. The test uses disposable build
+artifacts and does not touch a running q9 session or the desktop display.
 
 ## Source layout
 
@@ -108,6 +118,8 @@ src/runtime.zi         settings, profiles, clipboard and secure actions
 src/theme.zi           native Kryon style rules
 src/host.zi            storage and platform capabilities
 src/desktop.zi         desktop lifecycle
+src/plan9.zi           native Plan 9 libdraw lifecycle
+src/plan9_host.zi      native Plan 9 storage and clock
 src/browser.zi         browser lifecycle
 src/service_worker.zi  offline caching
 src/android*.zi        NativeActivity, JNI and Android lifecycle

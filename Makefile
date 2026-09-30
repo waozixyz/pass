@@ -16,7 +16,7 @@ CFLAGS := -std=c99 -O2 -Wno-unused-variable -I$(ZIRAN_ROOT)/include
 PROJECT := --project $(LOCK_FLAGS)
 ANDROID_ABIS ?= armeabi-v7a,arm64-v8a
 
-.PHONY: all cli gui native run test source-check core-test ziran-core-test cli-test runtime-test mini-test lesspass-compat-test gui-smoke gui-input-test web web-canvas site web-smoke android-debug android-emulator android-release android-smoke android-input-test e2e check-package-urls install install-cli install-gui uninstall-cli uninstall-gui package-deb package-appimage plan9-c
+.PHONY: all cli gui native run test source-check core-test ziran-core-test cli-test runtime-test mini-test lesspass-compat-test gui-smoke gui-input-test web web-canvas site web-smoke android-debug android-emulator android-release android-smoke android-input-test e2e check-package-urls install install-cli install-gui uninstall-cli uninstall-gui package-deb package-appimage plan9-c plan9-test
 all: cli gui
 native: all
 
@@ -107,6 +107,12 @@ android-input-test:
 plan9-c:
 	mkdir -p build/plan9/core
 	$(ZIRAN) build $(PROJECT) --target=plan9-c -o build/plan9/core pass_core.zi
+	$(ZIRAN) build $(PROJECT) --define PLAN9_BUILD --target=plan9-c -o build/plan9/gui src/plan9.zi
+	$(ZIRAN) build $(PROJECT) --define PLAN9_BUILD --target=plan9-c --entry cli:main -o build/plan9/cli src/cli.zi
+	python3 scripts/plan9_assets.py
+
+plan9-test: plan9-c
+	python3 scripts/plan9_test.py
 
 check-package-urls:
 	bash scripts/check_package_urls.sh

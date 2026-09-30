@@ -8,7 +8,12 @@
 libc :: #system_library "libc";
 Write :: (fd: s32, bytes: *u8, count: usize) -> isize #foreign libc "write";
 Read :: (fd: s32, bytes: *u8, count: usize) -> isize #foreign libc "read";
-GetEnv :: (name: *u8) -> *u8 #foreign libc "getenv";
+#if #defined(PLAN9_BUILD) {
+    GetEnvRaw :: (name: *s8) -> *s8 #foreign libc "getenv";
+    GetEnv :: (name: *u8) -> *u8 { return cast(*u8)GetEnvRaw(cast(*s8)name) }
+} else {
+    GetEnv :: (name: *u8) -> *u8 #foreign libc "getenv";
+}
 
 Usage :: #string END
 Usage: pass [OPTIONS] SITE LOGIN [MASTER_PASSWORD]

@@ -5,7 +5,7 @@ using UI :: #import "Widgets";
 #import "SystemTheme"
 #import "mini"
 fingerprint_path: [2048]u8;
-#if !#defined(PLATFORM_WEB) && !#defined(ANDROID_BUILD) {
+#if !#defined(PLATFORM_WEB) && !#defined(ANDROID_BUILD) && !#defined(PLAN9_BUILD) {
     assets_libc :: #system_library "libc";
     AssetReadable :: (path: *u8, mode: s32) -> s32 #foreign assets_libc "access";
     AssetEnvironment :: (name: *u8) -> *u8 #foreign assets_libc "getenv";
@@ -17,6 +17,8 @@ HostFingerprintPath :: () -> string {
         return "/fingerprint.png"
     } else #if #defined(ANDROID_BUILD) {
         return "fingerprint.png"
+    } else #if #defined(PLAN9_BUILD) {
+        return Plan9FingerprintPath()
     } else {
         if fingerprint_path[0] != cast(u8)0 { return TextUntilNul(fingerprint_path[:]) }
         proc: [32]u8
@@ -48,7 +50,7 @@ HostFingerprintPath :: () -> string {
         return TextUntilNul(fingerprint_path[:])
     }
 }
-#if !#defined(PLATFORM_WEB) && !#defined(ANDROID_BUILD) {
+#if !#defined(PLATFORM_WEB) && !#defined(ANDROID_BUILD) && !#defined(PLAN9_BUILD) {
     LinuxTheme :: #import "SystemThemeLinux";
     Desktop :: #import "Desktop";
     host_palette: SystemPalette;
@@ -148,7 +150,7 @@ HostFingerprintPath :: () -> string {
     }
 }
 
-#if true {
+#if !#defined(PLAN9_BUILD) {
     #import "timer_linux"
     libc :: #system_library "libc";
     OpenFile :: (path: *u8, mode: *u8) -> *void #foreign libc "fopen";
@@ -235,6 +237,10 @@ HostFingerprintPath :: () -> string {
     }
 }
 
+#if #defined(PLAN9_BUILD) {
+    #import "plan9_host"
+}
+
 #program_export
 ClipboardWrite :: (value: string) -> bool {
     #if #defined(ANDROID_BUILD) {
@@ -275,14 +281,14 @@ ClipboardMatches :: (value: string) -> bool {
 
 #program_export
 HostPalette :: () -> SystemPalette {
-    #if !#defined(PLATFORM_WEB) && !#defined(ANDROID_BUILD) {
+    #if !#defined(PLATFORM_WEB) && !#defined(ANDROID_BUILD) && !#defined(PLAN9_BUILD) {
         if !theme_loaded || Now() - theme_read_at > 5.0 {
             host_palette = LinuxTheme.SystemPaletteRead()
             theme_read_at = Now(); theme_loaded = true
         }
         return host_palette
     }
-    #if #defined(PLATFORM_WEB) || #defined(ANDROID_BUILD) {
+    #if #defined(PLATFORM_WEB) || #defined(ANDROID_BUILD) || #defined(PLAN9_BUILD) {
         return SystemPaletteFallback(HostDark())
     }
 }

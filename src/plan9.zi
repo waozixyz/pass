@@ -1,0 +1,59 @@
+#import "app"
+#import "host"
+#import "runtime"
+#import "mini"
+#import "byte_text_linux"
+#import "c_string"
+using UI :: #import "Widgets";
+#import "Frame"
+Libdraw :: #import "Libdraw";
+thread :: #system_library "thread";
+Routine :: #type (argument: *void) #c_call;
+CreateThread :: (routine: Routine, argument: *void, stack_size: u32) -> s32 #foreign thread "threadcreate";
+ExitThreads :: (status: *s8) #foreign thread "threadexitsall";
+
+Fail :: (message: string) {
+    bytes: [128]u8
+    CopyCString(message, bytes[:])
+    ExitThreads(cast(*s8)*bytes[0])
+}
+
+Run :: (argument: *void) {
+    unused argument
+    ok := Libdraw.OpenLibdraw()
+    if !ok { print("Pass: could not open libdraw\n"); Fail("libdraw"); return }
+    session := SessionOpen()
+    if !SessionValid(session) { Libdraw.CloseLibdraw(); Fail("session"); return }
+    while ok && Libdraw.PollLibdraw() {
+        KeyboardModifiersSend(session, Libdraw.LibdrawKeyboardModifiers())
+        key := Libdraw.LibdrawPressedKey()
+        if key != 0 { KeyboardSend(session, key) }
+        codepoint := Libdraw.LibdrawTypedCodepoint()
+        if codepoint != 0 { TypedCodepointSend(session, codepoint) }
+        Libdraw.BeginLibdrawFrame()
+        viewport := Libdraw.LibdrawViewport()
+        pointer := Libdraw.PollPointer()
+        TreePointerUpdate(session, pointer)
+        TreeSecondaryPointerUpdate(session, Libdraw.PollSecondaryPointer())
+        PointerWheelSend(session, pointer.x, pointer.y, Libdraw.LibdrawWheelMove())
+        if BeginFrame(session, cast(u64)1, viewport) != FrameStatus.FrameOk { ok = false; break }
+        if Frame(session, viewport) != 0 { TreeCancel(session); ok = false; break }
+        if EndFrame(session) != FrameStatus.FrameOk || !Libdraw.EndLibdrawFrame() { ok = false; break }
+        if Libdraw.CaptureRequested() { ok = Libdraw.CaptureConfigured(); break }
+        Libdraw.PauseLibdraw()
+    }
+    Shutdown(); CloseSession(session); Libdraw.CloseLibdraw()
+    if !ok { print("Pass: libdraw frame failed\n"); Fail("frame"); return }
+    ExitThreads(null)
+}
+
+// libthread supplies main and initializes the controllers' channels. Keep its
+// small initial stack separate from the application's UI and cryptography.
+#program_export
+threadmain :: (argc: s32, argv: **s8) {
+    args: [16]string
+    count: s32 = 0
+    while count < argc && count < 16 { args[count] = TextFromCString(cast(*u8)argv[count]); count += 1 }
+    SetMiniMode(MiniArgument(args[0:count]))
+    if CreateThread(Run, null, cast(u32)4194304) < 0 { Fail("thread") }
+}
