@@ -80,6 +80,11 @@ make android-emulator # build the x86_64 APK
 make android-input-test # keyboard, Generate/Copy and persistence in a private emulator
 ```
 
+`ziran build`, `ziran run`, and `ziran check` select the desktop profile.
+That profile uses `src/desktop.zi`, preserving Pass's storage, clipboard,
+fingerprint, and mini-window capabilities. `ziran install` installs `pass-gui`;
+`make install` also installs the command-line password generator.
+
 The Android app supports API 21 and newer and declares no Internet permission.
 Optional master-password storage uses AndroidKeyStore and device
 credential authentication on API 23 and newer. Browser profiles/settings use
@@ -90,7 +95,7 @@ For development with the real project repositories, create an ignored
 
 ```toml
 [overrides]
-Kryon = "../../kryonlabs/kryon"
+kryon = "../../kryonlabs/kryon"
 ziran = "../../ziranlang/ziran"
 ```
 

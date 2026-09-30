@@ -4,7 +4,7 @@ ZIRAN ?= ./scripts/ziran.sh
 # require the exact versions recorded in the committed lock.
 LOCK_FLAGS := $(if $(wildcard ziran.local.toml),,--locked)
 ZIRAN_ROOT = $(shell $(ZIRAN) pkg path ziran $(LOCK_FLAGS))
-KRYON_DIR = $(shell $(ZIRAN) pkg path Kryon $(LOCK_FLAGS))
+KRYON_DIR = $(shell $(ZIRAN) pkg path kryon $(LOCK_FLAGS))
 RAYLIB_DIR = $(shell $(ZIRAN) pkg path raylib $(LOCK_FLAGS))/src
 CC ?= cc
 BIN_DIR ?= $(HOME)/bin
@@ -34,7 +34,7 @@ build/generated/desktop/.complete: $(SOURCES) $(LIBRARY_SOURCES) ziran.toml zira
 	$(ZIRAN) build $(PROJECT) --target=c --entry desktop:main -o $(@D) src/desktop.zi
 	touch $@
 build/pass-gui: build/generated/desktop/.complete
-	$(CC) $(CFLAGS) -Ibuild/generated/desktop build/generated/desktop/*.c $(shell pkg-config --libs sdl2 cairo) -lm -o $@
+	$(CC) $(CFLAGS) -Ibuild/generated/desktop build/generated/desktop/*.c $(shell pkg-config --libs sdl2 cairo freetype2) -lm -o $@
 gui: build/pass-gui
 run: gui
 	./build/pass-gui

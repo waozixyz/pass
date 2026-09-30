@@ -1,4 +1,5 @@
 [package]
+tool = "kryon"
 name = "Pass"
 entry = "src/app.zi"
 module_roots = ["src", "."]
@@ -8,17 +9,21 @@ bridge_modules = ["app"]
 git = "https://github.com/ziranlang/ziran.git"
 ref = "master"
 
-[dependencies.Kryon]
+[dependencies.kryon]
 git = "https://github.com/kryonlabs/kryon.git"
 ref = "master"
 
-[tool.Kryon]
+[install]
+bin = "pass-gui"
+
+[tool.kryon]
 default_profile = "desktop"
 
-[tool.Kryon.profiles.desktop]
+[tool.kryon.profiles.desktop]
 backend = "desktop"
+host = "src/desktop.zi"
 
-[tool.Kryon.profiles.canvas]
+[tool.kryon.profiles.canvas]
 backend = "canvas"
 
 [dependencies.mingcute]
