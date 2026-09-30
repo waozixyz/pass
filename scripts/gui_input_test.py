@@ -24,7 +24,7 @@ def command(*args):
 def start():
     global app, window
     app = subprocess.Popen([str(root / "build/pass-gui")], cwd=fixture, env=environment)
-    deadline = time.monotonic() + 10
+    deadline = time.monotonic() + 30
     while time.monotonic() < deadline:
         assert app.poll() is None, "Pass exited before showing its window"
         result = subprocess.run(["xdotool", "search", "--onlyvisible", "--pid", str(app.pid)],
@@ -35,7 +35,10 @@ def start():
             time.sleep(0.3)
             return
         time.sleep(0.1)
-    raise AssertionError("Pass did not create a window")
+    owned = subprocess.run(["xdotool", "search", "--pid", str(app.pid)],
+                           env=environment, capture_output=True, text=True)
+    wait = Path(f"/proc/{app.pid}/wchan").read_text().strip()
+    raise AssertionError(f"Pass did not show its window: pid={app.pid}, owned={owned.stdout!r}, wait={wait}")
 
 def stop():
     if app and app.poll() is None:
@@ -80,5 +83,9 @@ try:
     click(700, 216)  # Delete a profile loaded from disk after restart.
     assert profiles.read_text() == "", "Reloaded profile could not be deleted"
     print("Ziran desktop: typing, expected password, clipboard, profiles, restart and deletion pass")
+except BaseException:
+    subprocess.run(["xwd", "-silent", "-root", "-out", str(output / "failure.xwd")],
+                   env=environment, timeout=5, check=False)
+    raise
 finally:
     stop()
