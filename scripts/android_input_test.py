@@ -65,12 +65,29 @@ try:
     saved = shell("run-as", package, "cat", "files/profiles.tsv")
     assert saved == expected, f"Profile input/persistence mismatch: {saved!r}"
     assert "test master" not in saved
+    # Generate from the saved profile, copy, and paste through Android's
+    # real clipboard/InputConnection into another profile name.
+    tap(int(100 * zoom), int(210 * zoom))
+    time.sleep(0.5)
+    tap(int(100 * zoom), height - int(220 * zoom))
+    shot("generated")
+    tap(width // 2, height - int(35 * zoom))
+    tap(int(90 * zoom), int(55 * zoom))
+    shell("input", "keyevent", "123")  # Move to the end.
+    shell("input", "keyevent", *("67" for _ in "Android test"))
+    shell("input", "keyevent", "279")  # Paste.
+    time.sleep(0.5)
+    shell("input", "keyevent", "4"); time.sleep(0.3)
+    tap(int(100 * zoom), int(105 * zoom))
+    password = "dEeEDu7/b27L#r<&"  # Independent LessPass reference.
+    expected += password + "\texample.com\talice\t16\t1\t1\t1\t1\t1\t\n"
+    assert shell("run-as", package, "cat", "files/profiles.tsv") == expected, "Android generation/copy/paste mismatch"
     shell("am", "force-stop", package)
     shell("am", "start", "-n", package + "/android.app.NativeActivity")
     time.sleep(1); alive()
     assert shell("run-as", package, "cat", "files/profiles.tsv") == expected
     shot("persisted")
-    print("Ziran Android: NativeActivity launch, soft keyboard, masked master, profiles and restart pass")
+    print("Ziran Android: launch, keyboard, masked master, expected password, clipboard, profiles and restart pass")
 except BaseException:
     shot("failure")
     raise

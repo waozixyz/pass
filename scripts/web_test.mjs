@@ -31,14 +31,34 @@ try {
   async function evaluate(expression){const result=await command('Runtime.evaluate',{expression,returnByValue:true,awaitPromise:true});if(result.exceptionDetails)throw Error(JSON.stringify(result.exceptionDetails));return result.result.value;}
   async function waitFor(expression){const until=Date.now()+30000;while(Date.now()<until){try{if(await evaluate(expression))return;}catch(error){if(!String(error).includes("ReferenceError")&&!String(error).includes("TypeError"))throw error;}await delay(100);}const shot=await command('Page.captureScreenshot',{format:'png'});await writeFile(join(output,'failure.png'),Buffer.from(shot.data,'base64'));throw Error('Timed out: '+expression+' '+await evaluate('JSON.stringify({paint:window.__passPaint?.slice(-30),module:typeof Module,exit:globalThis.Module?.EXITSTATUS,canvas:document.querySelector("canvas")?.width})')+' '+diagnostics);}
   await command('Runtime.enable');await command('Page.enable');
+  await command('Browser.grantPermissions',{origin:new URL(url).origin,permissions:['clipboardReadWrite','clipboardSanitizedWrite']});
   await command('Page.navigate',{url});
   await delay(500);
+  await waitFor('document.querySelector("canvas").getContext("2d").getImageData(50,innerHeight-35,1,1).data[1]<130');
+  // Shorten the timer in this disposable browser profile, then load it as
+  // persisted settings. The user's browser data is never used.
+  await evaluate('Module.FS.writeFile("/pass-data/.kryon_pass_clear_after_seconds.txt","1\\n");new Promise((resolve,reject)=>Module.FS.syncfs(false,error=>error?reject(error):resolve()))');
+  await command('Page.reload');
   await waitFor('document.querySelector("canvas").getContext("2d").getImageData(50,innerHeight-35,1,1).data[1]<130');
   async function click(x,y){await command('Input.dispatchMouseEvent',{type:'mouseMoved',x,y});await command('Input.dispatchMouseEvent',{type:'mousePressed',x,y,button:'left',clickCount:1});await delay(70);await command('Input.dispatchMouseEvent',{type:'mouseReleased',x,y,button:'left',clickCount:1});await delay(120);}
   async function type(text){for(const char of text){await command('Input.dispatchKeyEvent',{type:'rawKeyDown',key:char,code:char===' '?'Space':undefined});await command('Input.dispatchKeyEvent',{type:'char',key:char,text:char,unmodifiedText:char});await command('Input.dispatchKeyEvent',{type:'keyUp',key:char});await delay(25);}await delay(200);}
   const dims=await evaluate('({width:innerWidth,height:innerHeight})');
   await click(90,55);await type('example.com');
-  await click(90,130);await type('alice');await click(90,205);await type('test');
+  await click(90,130);await type('alice');await click(90,205);await type('test master');
+  // This expected password comes from the independent LessPass reference.
+  const expected='dEeEDu7/b27L#r<&';
+  const offset=Math.max(0,800-(dims.height-110));
+  await command('Input.dispatchMouseEvent',{type:'mouseWheel',x:120,y:300,deltaX:0,deltaY:10000});await delay(250);
+  await click(120,535-offset);await delay(500);
+  // Generate scrolls to the password. Copy must reach the real clipboard.
+  await click(120,690-offset);
+  await waitFor(`navigator.clipboard.readText().then(text=>text===${JSON.stringify(expected)})`);
+  await waitFor('navigator.clipboard.readText().then(text=>text==="")');
+  await click(120,690-offset);
+  await waitFor(`navigator.clipboard.readText().then(text=>text===${JSON.stringify(expected)})`);
+  await evaluate('navigator.clipboard.writeText("Another app test")');
+  await delay(1400);
+  if(await evaluate('navigator.clipboard.readText()')!=='Another app test')throw Error('Clipboard timer erased text copied elsewhere');
   await click(dims.width/2,dims.height-35); // Profiles tab
   await click(90,55);await type('Browser test');await click(120,105);
   await waitFor('Module.FS.analyzePath("/pass-data/profiles.tsv").exists');
@@ -54,7 +74,7 @@ try {
   await waitFor('Module.FS.analyzePath("/pass-data/profiles.tsv").exists');
   const screenshot=await command('Page.captureScreenshot',{format:'png'});
   await writeFile(join(output,'pass-offline.png'),Buffer.from(screenshot.data,'base64'));
-  console.log('Ziran browser: rendering, input, profile persistence and offline reload pass');
+  console.log('Ziran browser: rendering, input, expected password, clipboard copy/clear/preservation, profiles and offline reload pass');
 } finally {
   if(socket)socket.close();try{process.kill(-browser.pid,'SIGTERM');}catch{}
   await new Promise(resolve=>{if(browser.exitCode!==null||browser.signalCode!==null)resolve();else browser.once('exit',resolve);});server.close();
