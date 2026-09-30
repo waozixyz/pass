@@ -8,8 +8,10 @@ InstallTheme :: (palette: SystemPalette, material: bool) {
     rule.style.fields = cast(u32)StyleField.StyleForeground | cast(u32)StyleField.StyleFocus
     rule.style.foreground = palette.text; rule.style.focus = palette.selected
     rules.items[0] = rule; rules.count = 1
-    kinds: [5]s32 = .{StyleKindButton(), StyleKindTextField(), StyleKindSpinbox(), StyleKindCheckbox(), StyleKindScroll()}
-    for index: 0..4 {
+    // A spinbox's value box is its own kind; without it the value keeps
+    // Kryon's light default fill under the theme's text color.
+    kinds: [6]s32 = .{StyleKindButton(), StyleKindTextField(), StyleKindSpinbox(), StyleKindSpinboxValue(), StyleKindCheckbox(), StyleKindScroll()}
+    for index: 0..5 {
         rule.selector = StyleDefaultSelector(); rule.selector.kind = kinds[index]
         rule.style.fields = cast(u32)StyleField.StyleForeground | cast(u32)StyleField.StyleBackground | cast(u32)StyleField.StyleBorder | cast(u32)StyleField.StyleFocus | cast(u32)StyleField.StyleRadius | cast(u32)StyleField.StyleBorderWidth | cast(u32)StyleField.StyleMaterial
         rule.style.background = palette.base; rule.style.border = palette.text
