@@ -3,6 +3,7 @@
 #import "byte_text_linux"
 using UI :: #import "Widgets";
 #import "SystemTheme"
+#import "mini"
 fingerprint_path: [2048]u8;
 #if !#defined(PLATFORM_WEB) && !#defined(ANDROID_BUILD) {
     assets_libc :: #system_library "libc";
@@ -49,9 +50,17 @@ HostFingerprintPath :: () -> string {
 }
 #if !#defined(PLATFORM_WEB) && !#defined(ANDROID_BUILD) {
     LinuxTheme :: #import "SystemThemeLinux";
+    Desktop :: #import "Desktop";
     host_palette: SystemPalette;
     theme_loaded: bool;
     theme_read_at: float64;
+
+    // The full app's desktop window; mini mode grows into it in place.
+    #program_export
+    HostOpenFullApp :: () {
+        SetMiniMode(false)
+        Desktop.ResizeDesktop(960, 600)
+    }
 }
 
 #if #defined(PLATFORM_WEB) {
@@ -109,6 +118,33 @@ HostFingerprintPath :: () -> string {
         dark := WebAsBool(WebGet(media, WebName("matches")))
         WebEnd(scope)
         return dark
+    }
+
+    page_text: [4096]u8;
+    // location[name] (such as "search" or "href"), read into page_text.
+    PageLocation :: (name: string) -> string {
+        page_text[0] = cast(u8)0
+        scope := WebScope()
+        location := WebGetObject(WebGlobal, WebName("location"))
+        if location != 0 && !WebFailed() {
+            value := WebGet(location, WebName(name))
+            if value.tag == WebStringTag { WebCopyString(WebAsObject(value), page_text[:]) }
+        }
+        WebEnd(scope)
+        return TextUntilNul(page_text[:])
+    }
+    HostPageQuery :: () -> string { return PageLocation("search") }
+
+    // Opens the full app in a new tab, so a page embedding mini mode keeps
+    // its small frame.
+    #program_export
+    HostOpenFullApp :: () {
+        url: [4096]u8
+        length := MiniFullAppUrl(PageLocation("href"), url[:])
+        if length <= 0 { return }
+        scope := WebScope()
+        WebCall3(WebGlobal, WebName("open"), WebText(TextUntilNul(url[:])), WebText("_blank"), WebText("noopener"))
+        WebEnd(scope)
     }
 }
 

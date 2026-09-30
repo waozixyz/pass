@@ -1,0 +1,41 @@
+#import "mini"
+
+UrlIs :: (href: string, expected: string) -> bool {
+    output: [256]u8
+    length := MiniFullAppUrl(href, output[:])
+    if length != expected.count { return false }
+    index: s64 = 0
+    while index < length {
+        if output[index] != expected[index] { return false }
+        index += 1
+    }
+    return output[length] == cast(u8)0
+}
+
+#program_export
+MiniAnswer :: () -> s32 {
+    args: [3]string = .{"pass-gui", "--theme", "--mini"}
+    if !MiniArgument(args[:]) || MiniArgument(args[0:2]) { return 1 }
+    // The program name is not an option.
+    args[0] = "--mini"
+    if MiniArgument(args[0:1]) { return 2 }
+    if !MiniQuery("?mini") || !MiniQuery("?mini=1") || !MiniQuery("?a=1&mini") || !MiniQuery("mini") { return 3 }
+    if MiniQuery("") || MiniQuery("?") || MiniQuery("?minimal") || MiniQuery("?theme=mini") || MiniQuery("?xmini") { return 4 }
+    if !UrlIs("https://pass.waozi.xyz/app/?mini", "https://pass.waozi.xyz/app/") { return 5 }
+    if !UrlIs("https://a.b/?lang=de&mini=1&theme=2#top", "https://a.b/?lang=de&theme=2#top") { return 6 }
+    if !UrlIs("https://a.b/?mini&lang=de", "https://a.b/?lang=de") { return 7 }
+    if !UrlIs("https://a.b/#top?mini", "https://a.b/#top?mini") { return 8 }
+    if !UrlIs("https://a.b/?&mini&&x#h", "https://a.b/?x#h") { return 9 }
+    small: [8]u8
+    if MiniFullAppUrl("https://a.b/?mini", small[:]) != -1 { return 10 }
+    if MiniMode() { return 11 }
+    SetMiniMode(true)
+    if !MiniMode() { return 12 }
+    return 42
+}
+
+#program_export
+main :: () -> s32 {
+    if MiniAnswer() == 42 { return 0 }
+    return 1
+}

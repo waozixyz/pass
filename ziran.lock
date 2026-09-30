@@ -2,6 +2,14 @@
   "format": 1,
   "packages": [
     {
+      "commit": "933691600cf10e81b1f53d9919dbcb371c1968e1",
+      "dependencies": {},
+      "id": "p56788fa3dab3e73a",
+      "name": "mingcute",
+      "ref": "master",
+      "url": "https://github.com/kryonlabs/mingcute.git"
+    },
+    {
       "commit": "fafa2cea97d0cb379d832086ba45a989fa6f9c8e",
       "dependencies": {},
       "id": "p5a77c9c35110e925",
@@ -11,16 +19,16 @@
       "url": "https://github.com/raysan5/raylib.git"
     },
     {
-      "commit": "2dacc9eb7c2c023c0cc111b2c4deb210afdb4886",
+      "commit": "58c83781da02e72c1dc9c18bcfef83bc772a40fb",
       "dependencies": {"raylib": "p5a77c9c35110e925"},
-      "id": "p83be2ed3d78fa9cf",
+      "id": "pe1833b296eb48392",
       "name": "Kryon",
       "ref": "master",
       "url": "https://github.com/kryonlabs/kryon.git"
     }
   ],
   "root": {
-    "dependencies": {"Kryon": "p83be2ed3d78fa9cf"},
+    "dependencies": {"Kryon": "pe1833b296eb48392", "mingcute": "p56788fa3dab3e73a"},
     "name": "Pass"
   },
   "toolchain": {

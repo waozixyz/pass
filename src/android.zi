@@ -28,6 +28,10 @@ AndroidInitialize :: () -> bool {
     return path != null && ChangeDirectory(path) == 0
 }
 
+// Android has no mini mode.
+#program_export
+HostOpenFullApp :: () {}
+
 #program_export
 HostKeyboard :: (visible: bool) {
     if visible == keyboard_visible { return }

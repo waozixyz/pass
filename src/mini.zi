@@ -1,0 +1,111 @@
+// Mini mode is Pass reduced to its generator: site, login, master password,
+// the password, and Copy, without profiles, settings, or generation options.
+// A page embeds it with ?mini in the address; the desktop app starts it with
+// --mini. An expand button opens the full app.
+
+mini_mode: bool;
+
+MiniMode :: () -> bool { return mini_mode }
+SetMiniMode :: (enabled: bool) { mini_mode = enabled }
+
+// True when the command-line arguments after the program name include --mini.
+MiniArgument :: (args: []string) -> bool {
+    index: s64 = 1
+    while index < args.count {
+        if args[index] == "--mini" { return true }
+        index += 1
+    }
+    return false
+}
+
+// True when text[start:end] is the parameter `name`, bare or with a value.
+MiniParameterIs :: (text: string, start: s64, end: s64, name: string) -> bool {
+    if end - start < name.count { return false }
+    index: s64 = 0
+    while index < name.count {
+        if text[start + index] != name[index] { return false }
+        index += 1
+    }
+    // '=' starts the value.
+    return end - start == name.count || text[start + name.count] == cast(u8)61
+}
+
+// Where the parameters of text[begin:end] start, after a leading '?'.
+MiniQueryStart :: (text: string, begin: s64, end: s64) -> s64 {
+    if end > begin && text[begin] == cast(u8)63 { return begin + 1 }
+    return begin
+}
+
+// True when a page query such as "?mini" or "?lang=de&mini=1" asks for mini
+// mode.
+MiniQuery :: (query: string) -> bool {
+    start := MiniQueryStart(query, 0, query.count)
+    index := start
+    while index <= query.count {
+        // '&' separates parameters.
+        if index == query.count || query[index] == cast(u8)38 {
+            if MiniParameterIs(query, start, index, "mini") { return true }
+            start = index + 1
+        }
+        index += 1
+    }
+    return false
+}
+
+// Appends text[start:end] after `length` bytes, keeping output NUL-terminated.
+// Returns the new length, or -1 when it does not fit.
+MiniAppend :: (output: []u8, length: s64, text: string, start: s64, end: s64) -> s64 {
+    if length < 0 || start < 0 || end < start || end > text.count { return -1 }
+    if length + (end - start) + 1 > output.count { return -1 }
+    index := start
+    while index < end {
+        output[length + index - start] = text[index]
+        index += 1
+    }
+    length += end - start
+    output[length] = cast(u8)0
+    return length
+}
+
+MiniAppendByte :: (output: []u8, length: s64, byte: u8) -> s64 {
+    if length < 0 || length + 2 > output.count { return -1 }
+    output[length] = byte
+    output[length + 1] = cast(u8)0
+    return length + 1
+}
+
+// The full app's address for a mini page: the same page and route without the
+// mini parameter, so "https://a.b/app/?mini#top" becomes "https://a.b/app/#top".
+// Returns the length, or -1 when output is too small.
+MiniFullAppUrl :: (href: string, output: []u8) -> s64 {
+    if output.count == 0 { return -1 }
+    output[0] = cast(u8)0
+    // '?' starts the query and '#' the hash; a '?' in the hash belongs to it.
+    hash_start := href.count
+    query_start := href.count
+    index: s64 = 0
+    while index < href.count {
+        if href[index] == cast(u8)35 { hash_start = index; break }
+        if href[index] == cast(u8)63 && query_start == href.count { query_start = index }
+        index += 1
+    }
+    if query_start > hash_start { query_start = hash_start }
+    length := MiniAppend(output, 0, href, 0, query_start)
+    start := MiniQueryStart(href, query_start, hash_start)
+    index = start
+    kept: s32 = 0
+    while index <= hash_start && length >= 0 {
+        if index == hash_start || href[index] == cast(u8)38 {
+            if index > start && !MiniParameterIs(href, start, index, "mini") {
+                // The first kept parameter opens the query with '?', the rest
+                // are joined with '&'.
+                length = MiniAppendByte(output, length, ifx kept == 0 then cast(u8)63 else cast(u8)38)
+                length = MiniAppend(output, length, href, start, index)
+                kept += 1
+            }
+            start = index + 1
+        }
+        index += 1
+    }
+    return MiniAppend(output, length, href, hash_start, href.count)
+}

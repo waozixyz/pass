@@ -2,6 +2,8 @@
 #import "host"
 #import "runtime"
 #import "c_string"
+#import "byte_text_linux"
+#import "mini"
 Desktop :: #import "Desktop";
 using UI :: #import "Widgets";
 #import "Frame"
@@ -15,8 +17,10 @@ Report :: (message: string) {
     if CopyCString(message, buffer[:]) { WriteError(2, *buffer[0], cast(usize)message.count) }
 }
 
-DrawDesktop :: (session: Session, viewport: Rectangle) -> bool {
+DrawDesktop :: (session: Session) -> bool {
     Desktop.BeginDesktopFrame()
+    // After BeginDesktopFrame, which applies a resize from the last frame.
+    viewport := Desktop.DesktopViewport()
     pointer := Desktop.PollPointer()
     TreePointerUpdate(session, pointer)
     TreeSecondaryPointerUpdate(session, Desktop.PollSecondaryPointer())
@@ -30,17 +34,22 @@ DrawDesktop :: (session: Session, viewport: Rectangle) -> bool {
 }
 
 #program_export
-main :: () -> s32 {
-    if !Desktop.OpenDesktop() { Desktop.CloseDesktop(); Report("Pass: could not open desktop\n"); return 1 }
+main :: (argc: s32, argv: **u8) -> s32 {
+    args: [16]string
+    count: s32 = 0
+    while count < argc && count < 16 { args[count] = TextFromCString(argv[count]); count += 1 }
+    SetMiniMode(MiniArgument(args[0:count]))
+    // Mini mode is a phone-sized window; expanding it grows to the full size.
+    opened := ifx MiniMode() then Desktop.OpenDesktopSized(400, 640) else Desktop.OpenDesktop()
+    if !opened { Desktop.CloseDesktop(); Report("Pass: could not open desktop\n"); return 1 }
     title: [5]u8
     CopyCString("Pass", title[:])
     SetTitle(Desktop.window, *title[0])
     session := SessionOpen()
     if !SessionValid(session) { Desktop.CloseDesktop(); return 1 }
-    viewport: Rectangle = Rectangle.{0.0, 0.0, 960.0, 600.0}
     ok: bool = true
     if Desktop.CaptureRequested() {
-        ok = DrawDesktop(session, viewport)
+        ok = DrawDesktop(session)
         if ok { ok = Desktop.CaptureConfigured() }
     } else {
         while ok && Desktop.PollDesktop() {
@@ -52,7 +61,7 @@ main :: () -> s32 {
                 TypedCodepointSend(session, codepoint)
                 codepoint = Desktop.DesktopTypedCodepoint()
             }
-            ok = DrawDesktop(session, viewport)
+            ok = DrawDesktop(session)
             if ok { Desktop.PauseDesktop() }
         }
     }

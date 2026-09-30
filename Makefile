@@ -16,7 +16,7 @@ CFLAGS := -std=c99 -O2 -Wno-unused-variable -I$(ZIRAN_ROOT)/include
 PROJECT := --project $(LOCK_FLAGS)
 ANDROID_ABIS ?= armeabi-v7a,arm64-v8a
 
-.PHONY: all cli gui native run test source-check core-test ziran-core-test cli-test runtime-test lesspass-compat-test gui-smoke web web-canvas site web-smoke android-debug android-emulator android-release android-smoke android-input-test e2e check-package-urls install install-cli install-gui uninstall-cli uninstall-gui package-deb package-appimage plan9-c
+.PHONY: all cli gui native run test source-check core-test ziran-core-test cli-test runtime-test mini-test lesspass-compat-test gui-smoke web web-canvas site web-smoke android-debug android-emulator android-release android-smoke android-input-test e2e check-package-urls install install-cli install-gui uninstall-cli uninstall-gui package-deb package-appimage plan9-c
 all: cli gui
 native: all
 
@@ -46,11 +46,13 @@ core-test ziran-core-test:
 	sh scripts/ziran_core_test.sh "$(ZIRAN)"
 runtime-test:
 	sh scripts/runtime_test.sh "$(ZIRAN)"
+mini-test:
+	sh scripts/mini_test.sh "$(ZIRAN)"
 cli-test: cli
 	sh scripts/cli_test.sh ./pass
 lesspass-compat-test: cli
 	python3 scripts/lesspass_compat_test.py --cli ./pass
-test: source-check core-test runtime-test cli-test lesspass-compat-test
+test: source-check core-test runtime-test mini-test cli-test lesspass-compat-test
 gui-smoke: gui
 	sh scripts/gui_smoke.sh
 

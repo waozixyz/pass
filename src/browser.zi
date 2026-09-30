@@ -1,6 +1,7 @@
 #import "app"
 #import "host"
 #import "runtime"
+#import "mini"
 Browser :: #import "Canvas";
 using UI :: #import "Widgets";
 #import "Frame"
@@ -8,6 +9,7 @@ using UI :: #import "Widgets";
 #program_export
 main :: () -> s32 {
     if !BrowserInitialize() || !Browser.OpenCanvas() { return 1 }
+    SetMiniMode(MiniQuery(HostPageQuery()))
     session := SessionOpen()
     if !SessionValid(session) { Browser.CloseCanvas(); return 1 }
     ok: bool = true
