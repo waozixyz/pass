@@ -2,9 +2,10 @@
 // WebAssembly program. Emscripten supplies only the generated JS loader.
 #import "web"
 
-CacheName :: "pass-ziran-v1";
+CacheName :: "pass-ziran-v2";
 FetchJob :: struct {
     active: bool
+    immutable: bool
     event: s32
     request: s32
     resolve: s32
@@ -12,12 +13,14 @@ FetchJob :: struct {
     success: s32
     failure: s32
     cached: s32
+    cache_failed: s32
     opened: s32
     response: s32
 }
 jobs: [64]FetchJob;
 install_event: s32;
 activate_event: s32;
+install_cache: s32;
 
 CallFunction :: (function: s32, value: WebValue) {
     WebCall2(function, WebName("call"), WebUndefined(), value)
@@ -30,13 +33,25 @@ WaitUntil :: (event: s32, promise: s32) {
     WebCall1(event, WebName("waitUntil"), WebObject(promise))
 }
 
-Installed :: (context: s32, cache: s32, second: s32, third: s32) {
-    assets := WebNewArray()
-    paths: [7]string = .{"./", "index.js", "index.wasm", "sw.js", "icons/icon-192.png", "icons/icon-512.png", "manifest.webmanifest"}
-    for index: 0..6 { WebSetAt(assets, cast(s32)index, WebText(paths[index])) }
-    promise := WebAsObject(WebCall1(cache, WebName("addAll"), WebObject(assets)))
+ManifestAssets :: (context: s32, assets: s32, second: s32, third: s32) {
+    promise := WebAsObject(WebCall1(install_cache, WebName("addAll"), WebObject(assets)))
     WaitUntil(install_event, promise)
+    WebRelease(install_cache); install_cache = 0
     WebRelease(install_event); install_event = 0
+}
+ManifestFetched :: (context: s32, response: s32, second: s32, third: s32) {
+    promise := WebAsObject(WebCall0(response, WebName("json")))
+    callback := WebFunction(ManifestAssets, 0)
+    chain := WebAsObject(WebCall1(promise, WebName("then"), WebObject(callback)))
+    WaitUntil(install_event, chain)
+}
+Installed :: (context: s32, cache: s32, second: s32, third: s32) {
+    install_cache = WebKeep(cache)
+    // This manifest pins the loader and Wasm to the same built revision.
+    promise := WebAsObject(WebCall1(WebGlobal, WebName("fetch"), WebText("assets.json")))
+    callback := WebFunction(ManifestFetched, 0)
+    chain := WebAsObject(WebCall1(promise, WebName("then"), WebObject(callback)))
+    WaitUntil(install_event, chain)
 }
 Install :: (context: s32, event: s32, second: s32, third: s32) {
     install_event = WebKeep(event)
@@ -80,7 +95,8 @@ Finish :: (index: s32) {
     WebRelease(job.event); WebRelease(job.request)
     WebRelease(job.resolve); WebRelease(job.reject)
     WebRelease(job.success); WebRelease(job.failure)
-    WebRelease(job.cached); WebRelease(job.opened); WebRelease(job.response)
+    WebRelease(job.cached); WebRelease(job.cache_failed)
+    WebRelease(job.opened); WebRelease(job.response)
     jobs[index] = FetchJob.{}
 }
 CacheOpened :: (index: s32, cache: s32, second: s32, third: s32) {
@@ -111,15 +127,52 @@ Cached :: (index: s32, response: s32, second: s32, third: s32) {
 }
 FetchFailed :: (index: s32, error: s32, second: s32, third: s32) {
     promise := WebAsObject(WebCall1(Caches(), WebName("match"), WebObject(jobs[index].request)))
+    WebRelease(jobs[index].cached)
     jobs[index].cached = WebFunction(Cached, index)
     WebCall1(promise, WebName("then"), WebObject(jobs[index].cached))
 }
-FetchExecutor :: (index: s32, resolve: s32, reject: s32, third: s32) {
-    jobs[index].resolve = WebKeep(resolve); jobs[index].reject = WebKeep(reject)
+FetchNetwork :: (index: s32) {
     promise := WebAsObject(WebCall1(WebGlobal, WebName("fetch"), WebObject(jobs[index].request)))
     jobs[index].success = WebFunction(Fetched, index)
     jobs[index].failure = WebFunction(FetchFailed, index)
     Then(promise, jobs[index].success, jobs[index].failure)
+}
+AssetCached :: (index: s32, response: s32, second: s32, third: s32) {
+    if WebIsUndefined(WebValueOf(response)) { FetchNetwork(index); return }
+    CallFunction(jobs[index].resolve, WebObject(response))
+    Finish(index)
+}
+AssetCacheFailed :: (index: s32, error: s32, second: s32, third: s32) {
+    FetchNetwork(index)
+}
+FetchExecutor :: (index: s32, resolve: s32, reject: s32, third: s32) {
+    jobs[index].resolve = WebKeep(resolve); jobs[index].reject = WebKeep(reject)
+    if !jobs[index].immutable { FetchNetwork(index); return }
+    // A cached, content-addressed asset remains valid when a later deployment
+    // replaces the HTML. Never substitute another revision's loader or Wasm.
+    promise := WebAsObject(WebCall1(Caches(), WebName("match"), WebObject(jobs[index].request)))
+    jobs[index].cached = WebFunction(AssetCached, index)
+    jobs[index].cache_failed = WebFunction(AssetCacheFailed, index)
+    Then(promise, jobs[index].cached, jobs[index].cache_failed)
+}
+ImmutableAsset :: (request: s32) -> bool {
+    address := WebGet(request, WebName("url"))
+    url := WebNew1(WebGetObject(WebGlobal, WebName("URL")), address)
+    path := WebGetObject(url, WebName("pathname"))
+    buffer: [2048]u8
+    length := WebCopyString(path, buffer[:])
+    if length <= 0 { return false }
+    start := length
+    while start > 0 && buffer[start - 1] != cast(u8)47 { start -= 1 }
+    name := TextView(buffer[start:length])
+    if name.count != 25 && name.count != 27 { return false }
+    if name[0:6] != "index-" { return false }
+    if name[22:] != ".js" && name[22:] != ".wasm" { return false }
+    for index: 6..21 {
+        byte := name[index]
+        if !(byte >= cast(u8)48 && byte <= cast(u8)57) && !(byte >= cast(u8)97 && byte <= cast(u8)102) { return false }
+    }
+    return true
 }
 Fetch :: (context: s32, event: s32, second: s32, third: s32) {
     request := WebGetObject(event, WebName("request"))
@@ -131,6 +184,7 @@ Fetch :: (context: s32, event: s32, second: s32, third: s32) {
     while index < 64 && jobs[index].active { index += 1 }
     if index == 64 { return }
     jobs[index].active = true
+    jobs[index].immutable = ImmutableAsset(request)
     jobs[index].event = WebKeep(event); jobs[index].request = WebKeep(request)
     executor := WebFunction(FetchExecutor, index)
     promise := WebNew1(WebGetObject(WebGlobal, WebName("Promise")), WebObject(executor))

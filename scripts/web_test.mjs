@@ -44,6 +44,8 @@ try {
   await command('Page.navigate',{url});
   await delay(500);
   await waitFor(painted);
+  const loadedAssets=await evaluate('performance.getEntriesByType("resource").map(r=>new URL(r.name).pathname.split("/").pop()).filter(name=>name.startsWith("index"))');
+  if(!loadedAssets.some(name=>/^index-[0-9a-f]{16}\.js$/.test(name)) || !loadedAssets.some(name=>/^index-[0-9a-f]{16}\.wasm$/.test(name)) || loadedAssets.some(name=>name==='index.js'||name==='index.wasm'))throw Error('Loader and Wasm must use immutable versioned URLs: '+JSON.stringify(loadedAssets));
   // Shorten the timer in this disposable browser profile, then load it as
   // persisted settings. The user's browser data is never used.
   await evaluate('Module.FS.writeFile("/pass-data/.kryon_pass_clear_after_seconds.txt","1\\n");new Promise((resolve,reject)=>Module.FS.syncfs(false,error=>error?reject(error):resolve()))');
@@ -77,7 +79,7 @@ try {
   await command('Page.reload');await waitFor('Module.FS.analyzePath("/pass-data/profiles.tsv").exists');
   if(await evaluate('Module.FS.readFile("/pass-data/profiles.tsv",{encoding:"utf8"})')!==profiles)throw Error('Profile did not survive reload');
   await waitFor('navigator.serviceWorker.controller !== null');
-  await waitFor('caches.open("pass-ziran-v1").then(c=>c.match("index.wasm")).then(Boolean)');
+  await waitFor('fetch("assets.json").then(r=>r.json()).then(paths=>caches.open("pass-ziran-v2").then(c=>Promise.all(paths.filter(p=>p.endsWith(".js")||p.endsWith(".wasm")).map(p=>c.match(p)))).then(items=>items.every(Boolean)))');
   await command('Network.enable');await command('Network.emulateNetworkConditions',{offline:true,latency:0,downloadThroughput:0,uploadThroughput:0});
   await command('Page.reload');await waitFor(painted);
   await waitFor('Module.FS.analyzePath("/pass-data/profiles.tsv").exists');
