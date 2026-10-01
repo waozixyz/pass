@@ -239,7 +239,7 @@ OptionsForm :: (session: Session, x: float32, y: float32, width: float32) -> flo
 ExpandButton :: (session: Session, bounds: Rectangle) -> bool {
     props: ButtonProps
     props.key = cast(u64)800; props.id = 800
-    props.bounds = bounds; props.label = "Open full app"
+    props.bounds = bounds; props.label = "Full Version"
     props.icon_shape = Fullscreen.Shape; props.icon_only = true
     props.tone = ButtonTone.ButtonToneNeutral
     props.emphasis = ButtonEmphasis.ButtonEmphasisSoft

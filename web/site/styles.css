@@ -4,6 +4,7 @@
 .hero { grid-template-columns: 1.15fr .85fr; }
 .hero h1 { font-size: clamp(52px, 6.1vw, 80px); }
 .hero-art { margin-top: 60px !important; }
+.download-shortcuts { display: flex; flex-wrap: wrap; align-items: center; gap: 0 20px; margin-top: 8px; }
 .hero-art figcaption { margin-top: 0; }
 .generator-intro { display: grid; grid-template-columns: 1.08fr .92fr; gap: 75px; align-items: center; padding-block: 15px 65px; }
 .generator-example { border: 1px solid #d7cfc1; border-radius: 6px; background: #fbf9f3; padding: 30px; box-shadow: 0 12px 24px #3c352109; }
@@ -27,6 +28,7 @@
 .download-platform { display: grid; grid-template-columns: 35px 1fr; gap: 20px; padding: 28px 0; border-top: 1px solid var(--line); }
 .download-platform-icon img { width: 28px; height: 28px; margin-top: 3px; object-fit: contain; filter: grayscale(1); mix-blend-mode: multiply; }
 .download-platform h3 { font-size: 27px; }
+.download-platform .distribution-note { font-size: 11px; }
 .download-platform p { margin-top: 11px; color: var(--muted); font-size: 12px; }
 .download-pills { display: flex; flex-wrap: wrap; gap: 10px 17px; margin-top: 17px; }
 .download-pills a { font-size: 11px; }
