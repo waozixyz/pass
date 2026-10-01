@@ -12,6 +12,9 @@
 
 Website and browser app: [pass.waozi.xyz](https://pass.waozi.xyz/)
 
+The browser generator also works when browser storage is blocked or unavailable.
+Profiles and settings require browser storage to be saved between visits.
+
 Pass is a stateless password generator: the same site, login, master
 password, and settings produce the same result without a password database.
 It is a new, independently written implementation of the LessPass generation

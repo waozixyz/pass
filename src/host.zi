@@ -69,6 +69,7 @@ HostFingerprintPath :: () -> string {
     #import "web"
     sync_done: bool;
     sync_failed: bool;
+    browser_persistent_storage: bool;
 
     StorageSynced :: (context: s32, error: s32, second: s32, third: s32) {
         sync_failed = !WebIsUndefined(WebValueOf(error))
@@ -91,19 +92,23 @@ HostFingerprintPath :: () -> string {
         fs := WebGetObject(WebModule, WebName("FS"))
         backend := WebGetObject(WebModule, WebName("IDBFS"))
         WebCall1(fs, WebName("mkdir"), WebText("/pass-data"))
+        if WebFailed() { WebEnd(scope); return false }
         options := WebNewObject()
         args: [3]WebValue = .{WebObject(backend), WebObject(options), WebText("/pass-data")}
         WebCall(fs, WebName("mount"), *args[0], 3)
-        ok := !WebFailed()
+        mounted := !WebFailed()
         WebCall1(fs, WebName("chdir"), WebText("/pass-data"))
-        ok = ok && !WebFailed()
+        ok := !WebFailed()
         WebEnd(scope)
         scope = WebScope()
         navigator := WebGetObject(WebGlobal, WebName("navigator"))
         worker := WebGetObject(navigator, WebName("serviceWorker"))
         if worker != 0 { WebCall1(worker, WebName("register"), WebText("sw.js")) }
         WebEnd(scope)
-        return ok && BrowserSync(true)
+        // Profiles and settings need IndexedDB; the stateless generator does not.
+        // Storage may be denied in private browsers and embedded previews.
+        browser_persistent_storage = mounted && BrowserSync(true)
+        return ok
     }
     #program_export
     Now :: () -> float64 {
@@ -189,6 +194,9 @@ HostFingerprintPath :: () -> string {
     }
     #program_export
     WriteStore :: (name: string, value: string) -> bool {
+        #if #defined(PLATFORM_WEB) {
+            if !browser_persistent_storage { return false }
+        }
         path: [256]u8
         temporary: [272]u8
         mode: [3]u8
