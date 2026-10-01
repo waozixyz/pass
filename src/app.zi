@@ -330,8 +330,9 @@ SettingsForm :: (session: Session, x: float32, y: float32, width: float32) {
 }
 
 ApplyTheme :: () {
-    dark := ResolveDark(cast(ThemePolicy)runtime.settings.theme_mode, HostDark())
-    signature := cast(s32)dark + runtime.settings.theme_mode * 2 + runtime.settings.theme_source * 8 + runtime.settings.theme_id * 16 + runtime.settings.theme_style * 512
+    paper := WaoziTheme()
+    dark := !paper && ResolveDark(cast(ThemePolicy)runtime.settings.theme_mode, HostDark())
+    signature := cast(s32)dark + runtime.settings.theme_mode * 2 + runtime.settings.theme_source * 8 + runtime.settings.theme_id * 16 + runtime.settings.theme_style * 512 + ifx paper then 4096 else 0
     if signature == theme_signature { return }
     theme_signature = signature
     palette = DefaultPalette(dark)
@@ -347,7 +348,17 @@ ApplyTheme :: () {
         else { system = SystemPaletteFallback(dark) }
         palette.background = system.background
     }
-    InstallTheme(system, runtime.settings.theme_style == 2)
+    if paper {
+        palette = WaoziPalette()
+        system.dark = false
+        system.background = palette.background
+        system.base = palette.surface
+        system.text = palette.text
+        system.border = palette.border
+        system.selected = palette.accent
+        system.selected_text = palette.on_accent
+    }
+    InstallTheme(system, !paper && runtime.settings.theme_style == 2, paper)
 }
 
 #program_export

@@ -1,7 +1,26 @@
 using UI :: #import "Widgets";
 #import "SystemTheme"
+#import "Theme"
 
-InstallTheme :: (palette: SystemPalette, material: bool) {
+WaoziPalette :: () -> Palette {
+    colors := DefaultPalette(false)
+    colors.background = 0xf7f3ebff
+    colors.surface = 0xfcfaf5ff
+    colors.surface_raised = 0xfcfaf5ff
+    colors.surface_sunken = 0xdce2d4ff
+    colors.text = 0x202c29ff
+    colors.text_muted = 0x60665dff
+    colors.icon = colors.text
+    colors.border = 0xd9d6caff
+    colors.border_strong = 0x315e48ff
+    colors.accent = 0xa64e32ff
+    colors.on_accent = 0xfcfaf5ff
+    colors.focus = 0x315e48ff
+    colors.selection = 0xdce2d4ff
+    return colors
+}
+
+InstallTheme :: (palette: SystemPalette, material: bool, paper: bool) {
     rules: StyleRules
     rule: StyleRule
     rule.selector = StyleDefaultSelector()
@@ -14,8 +33,8 @@ InstallTheme :: (palette: SystemPalette, material: bool) {
     for index: 0..5 {
         rule.selector = StyleDefaultSelector(); rule.selector.kind = kinds[index]
         rule.style.fields = cast(u32)StyleField.StyleForeground | cast(u32)StyleField.StyleBackground | cast(u32)StyleField.StyleBorder | cast(u32)StyleField.StyleFocus | cast(u32)StyleField.StyleRadius | cast(u32)StyleField.StyleBorderWidth | cast(u32)StyleField.StyleMaterial
-        rule.style.background = palette.base; rule.style.border = palette.text
-        rule.style.border_width = 1.0; rule.style.radius = ifx material then 8.0 else 2.0
+        rule.style.background = palette.base; rule.style.border = ifx paper then palette.border else palette.text
+        rule.style.border_width = 1.0; rule.style.radius = ifx material || paper then 8.0 else 2.0
         rule.style.material = ifx material then MaterialKind.MaterialLightfield else MaterialKind.MaterialFlat
         rule.order = rules.count; rules.items[rules.count] = rule; rules.count += 1
     }

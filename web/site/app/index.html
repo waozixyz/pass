@@ -9,6 +9,13 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <script>
+    const previewQuery = new URLSearchParams(location.search);
+    if (previewQuery.has('mini') && previewQuery.get('theme') === 'waozi') {
+      document.documentElement.dataset.embedTheme = 'waozi';
+      document.querySelector('meta[name="theme-color"]').content = '#f7f3eb';
+    }
+  </script>
   <style>
     html, body {
       width: 100%;
@@ -37,6 +44,11 @@
       outline: 0;
       background: #f7ede2;
     }
+    :root[data-embed-theme="waozi"],
+    :root[data-embed-theme="waozi"] body,
+    :root[data-embed-theme="waozi"] .canvas-stage,
+    :root[data-embed-theme="waozi"] .canvas-frame,
+    :root[data-embed-theme="waozi"] canvas { background: #f7f3eb; color: #202c29; }
   </style>
 </head>
 <body>

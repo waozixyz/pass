@@ -10,6 +10,7 @@ using UI :: #import "Widgets";
 main :: () -> s32 {
     if !BrowserInitialize() || !Browser.OpenCanvas() { return 1 }
     SetMiniMode(MiniQuery(HostPageQuery()))
+    SetWaoziTheme(MiniWaoziThemeQuery(HostPageQuery()))
     session := SessionOpen()
     if !SessionValid(session) { Browser.CloseCanvas(); return 1 }
     ok: bool = true

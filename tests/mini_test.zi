@@ -31,6 +31,13 @@ MiniAnswer :: () -> s32 {
     if MiniMode() { return 11 }
     SetMiniMode(true)
     if !MiniMode() { return 12 }
+    if !MiniWaoziThemeQuery("?mini&theme=waozi") || !MiniWaoziThemeQuery("?theme=waozi&mini=1") { return 13 }
+    if MiniWaoziThemeQuery("?theme=waozi") || MiniWaoziThemeQuery("?mini&theme=waozix") || MiniWaoziThemeQuery("?mini&x-theme=waozi") { return 14 }
+    if !UrlIs("https://a.b/?mini&theme=waozi&lang=de#top", "https://a.b/?lang=de#top") { return 15 }
+    SetWaoziTheme(true)
+    if !WaoziTheme() { return 16 }
+    SetMiniMode(false)
+    if WaoziTheme() { return 17 }
     return 42
 }
 

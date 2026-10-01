@@ -4,9 +4,12 @@
 // --mini. An expand button opens the full app.
 
 mini_mode: bool;
+waozi_theme: bool;
 
 MiniMode :: () -> bool { return mini_mode }
 SetMiniMode :: (enabled: bool) { mini_mode = enabled }
+WaoziTheme :: () -> bool { return mini_mode && waozi_theme }
+SetWaoziTheme :: (enabled: bool) { waozi_theme = enabled }
 
 // True when the command-line arguments after the program name include --mini.
 MiniArgument :: (args: []string) -> bool {
@@ -45,6 +48,21 @@ MiniQuery :: (query: string) -> bool {
         // '&' separates parameters.
         if index == query.count || query[index] == cast(u8)38 {
             if MiniParameterIs(query, start, index, "mini") { return true }
+            start = index + 1
+        }
+        index += 1
+    }
+    return false
+}
+
+// The portfolio's palette belongs to this preview, never to saved settings.
+MiniWaoziThemeQuery :: (query: string) -> bool {
+    if !MiniQuery(query) { return false }
+    start := MiniQueryStart(query, 0, query.count)
+    index := start
+    while index <= query.count {
+        if index == query.count || query[index] == cast(u8)38 {
+            if query[start:index] == "theme=waozi" { return true }
             start = index + 1
         }
         index += 1
@@ -96,7 +114,7 @@ MiniFullAppUrl :: (href: string, output: []u8) -> s64 {
     kept: s32 = 0
     while index <= hash_start && length >= 0 {
         if index == hash_start || href[index] == cast(u8)38 {
-            if index > start && !MiniParameterIs(href, start, index, "mini") {
+            if index > start && !MiniParameterIs(href, start, index, "mini") && href[start:index] != "theme=waozi" {
                 // The first kept parameter opens the query with '?', the rest
                 // are joined with '&'.
                 length = MiniAppendByte(output, length, ifx kept == 0 then cast(u8)63 else cast(u8)38)
