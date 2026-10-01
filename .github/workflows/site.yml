@@ -27,8 +27,12 @@ jobs:
   build:
     needs: guard-package-urls
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
       - name: Install Emscripten
         run: |
           set -euo pipefail
@@ -44,6 +48,17 @@ jobs:
           test -s build/site/index.html
           test -s build/site/app/index.html
           test -s build/site/app/index.wasm
+      - name: Verify browser input, storage, cache upgrades, and offline launch
+        env:
+          PASS_WEB_SMOKE_BROWSER: google-chrome
+        run: bash scripts/web_smoke.sh
+      - name: Upload browser failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pass-browser-diagnostics
+          path: build/web-test/*.png
+          if-no-files-found: ignore
       - uses: actions/upload-artifact@v4
         with:
           name: pass-site
@@ -65,7 +80,7 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy build/site --project-name=pass --branch=${{ github.head_ref || github.ref_name }}
+          command: pages deploy build/site --project-name=pass --branch=${{ github.head_ref || github.ref_name }} --commit-hash=${{ github.sha }}
 
   deploy-production:
     name: Deploy Production
@@ -82,4 +97,4 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy build/site --project-name=pass --branch=master
+          command: pages deploy build/site --project-name=pass --branch=master --commit-hash=${{ github.sha }}

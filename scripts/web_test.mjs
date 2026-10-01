@@ -7,10 +7,25 @@ import {setTimeout as delay} from 'node:timers/promises';
 const root=resolve('build/site'), output=resolve('build/web-test');
 await mkdir(output,{recursive:true});
 const profile=await mkdtemp(join(output,'profile-'));
+let legacy=false, retiredAssets=false;
+const legacyLoader='globalThis.__passLegacyLoader=true;';
 const server=createServer(async(req,res)=>{
   const pathname=decodeURIComponent(new URL(req.url,'http://localhost').pathname);
   const file=join(root,pathname.endsWith('/')?pathname+'index.html':pathname);
   if(!file.startsWith(root+'/')){res.writeHead(403).end();return;}
+  res.setHeader('Cache-Control','no-cache');
+  if(legacy && pathname==='/app/') {
+    res.setHeader('Content-Type','text/html');
+    res.end('<script src="index.js"></script>');return;
+  }
+  if(pathname==='/app/index.js') {
+    res.setHeader('Cache-Control','public, max-age=14400');
+    res.setHeader('Content-Type','application/javascript');
+    res.end(legacyLoader);return;
+  }
+  if(retiredAssets && /^\/app\/index-[0-9a-f]{16}\.(js|wasm)$/.test(pathname)) {
+    res.writeHead(404).end();return;
+  }
   try {const data=await readFile(file);res.setHeader('Content-Type',({'.js':'application/javascript','.wasm':'application/wasm','.html':'text/html','.webmanifest':'application/manifest+json'})[extname(file)]||'application/octet-stream');res.end(data);}catch{res.writeHead(404).end();}
 });
 await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
@@ -41,9 +56,19 @@ try {
   `});
   const painted='(()=>{const c=document.querySelector("canvas");if(!c)return false;const p=c.getContext("2d").getImageData(50,innerHeight-35,1,1).data;return p[3]===255&&p[1]<130&&window.__passDrawCount>0})()';
   await command('Browser.grantPermissions',{origin:new URL(url).origin,permissions:['clipboardReadWrite','clipboardSanitizedWrite']});
+  if(!process.env.PASS_WEB_TEST_URL) {
+    // Seed the four-hour HTTP cache and the previous worker cache in the same
+    // disposable profile before loading the current deployment.
+    legacy=true;
+    await command('Page.navigate',{url});
+    await waitFor('window.__passLegacyLoader===true');
+    await evaluate(`caches.open('pass-ziran-v1').then(c=>c.put('index.js',new Response(${JSON.stringify(legacyLoader)})))`);
+    legacy=false;
+  }
   await command('Page.navigate',{url});
   await delay(500);
   await waitFor(painted);
+  if(await evaluate('window.__passLegacyLoader===true'))throw Error('Current deployment reused the stale unversioned loader');
   const loadedAssets=await evaluate('performance.getEntriesByType("resource").map(r=>new URL(r.name).pathname.split("/").pop()).filter(name=>name.startsWith("index"))');
   if(!loadedAssets.some(name=>/^index-[0-9a-f]{16}\.js$/.test(name)) || !loadedAssets.some(name=>/^index-[0-9a-f]{16}\.wasm$/.test(name)) || loadedAssets.some(name=>name==='index.js'||name==='index.wasm'))throw Error('Loader and Wasm must use immutable versioned URLs: '+JSON.stringify(loadedAssets));
   // Shorten the timer in this disposable browser profile, then load it as
@@ -80,6 +105,14 @@ try {
   if(await evaluate('Module.FS.readFile("/pass-data/profiles.tsv",{encoding:"utf8"})')!==profiles)throw Error('Profile did not survive reload');
   await waitFor('navigator.serviceWorker.controller !== null');
   await waitFor('fetch("assets.json").then(r=>r.json()).then(paths=>caches.open("pass-ziran-v2").then(c=>Promise.all(paths.filter(p=>p.endsWith(".js")||p.endsWith(".wasm")).map(p=>c.match(p)))).then(items=>items.every(Boolean)))');
+  await waitFor('caches.keys().then(keys=>!keys.includes("pass-ziran-v1"))');
+  if(!process.env.PASS_WEB_TEST_URL) {
+    // A later deployment can remove this revision's immutable assets. An open
+    // app must still reload its matched cached pair while the network is online.
+    retiredAssets=true;
+    await command('Page.reload');await waitFor(painted);
+    retiredAssets=false;
+  }
   await command('Network.enable');await command('Network.emulateNetworkConditions',{offline:true,latency:0,downloadThroughput:0,uploadThroughput:0});
   await command('Page.reload');await waitFor(painted);
   await waitFor('Module.FS.analyzePath("/pass-data/profiles.tsv").exists');
@@ -120,7 +153,7 @@ try {
     if(exceptions.length)throw Error(name+': browser exceptions '+JSON.stringify(exceptions));
     await command('Page.removeScriptToEvaluateOnNewDocument',{identifier:script.identifier});
   }
-  console.log('Ziran browser: rendering, input, expected password, clipboard copy/clear/preservation, profiles, offline reload and denied/missing-storage canvas rendering/generation pass');
+  console.log('Ziran browser: stale-loader upgrade, cached immutable assets after replacement, rendering, input, expected password, clipboard copy/clear/preservation, profiles, offline reload and denied/missing-storage canvas rendering/generation pass');
 } finally {
   if(socket)socket.close();try{process.kill(-browser.pid,'SIGTERM');}catch{}
   await new Promise(resolve=>{if(browser.exitCode!==null||browser.signalCode!==null)resolve();else browser.once('exit',resolve);});server.close();
